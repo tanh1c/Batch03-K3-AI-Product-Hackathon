@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Prototype trình đọc tài liệu và trợ giảng AI theo ngữ cảnh." />
+    <title>VLearn Reader</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div id="app" class="app-shell">
+      <header class="top-header">
+        <div class="brand-zone">
+          <button class="icon-button mobile-menu" id="mobileMenuButton" aria-label="Mở học liệu" data-icon="menu"></button>
+          <div class="brand-mark" aria-hidden="true"><span></span><span></span></div>
+          <div class="brand-name">V<span>Learn</span></div>
+          <div class="header-divider"></div>
+          <div class="document-heading">
+            <div class="doc-icon" data-icon="book-open"></div>
+            <div>
+              <h1 id="documentTitle">AI trong hành động.pdf</h1>
+              <p id="documentSubtitle">COMP2010 · Tài liệu học tập</p>
+            </div>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button class="upload-button" id="openUploadButton"><span data-icon="upload"></span><span>Tải slide lên</span></button>
+          <button class="tiny-button" aria-label="Ngôn ngữ">VI</button>
+          <button class="icon-button" id="themeButton" aria-label="Đổi giao diện" data-icon="moon"></button>
+          <button class="profile-button"><span class="status-dot"></span><span>Sinh viên ẩn danh</span></button>
+        </div>
+      </header>
+
+      <div class="workspace">
+        <aside class="library-panel" id="libraryPanel" aria-label="Học liệu môn học">
+          <div class="panel-heading library-heading">
+            <div class="heading-icon" data-icon="book-open"></div>
+            <div><h2>Học liệu môn học</h2><p>Chương, slide và tài liệu đã tải lên</p></div>
+            <button class="icon-button panel-close" id="closeLibraryButton" aria-label="Đóng học liệu" data-icon="x"></button>
+          </div>
+          <div class="library-scroll" id="libraryList"></div>
+          <div class="library-upload-card" id="libraryUploadButton">
+            <div class="upload-card-icon" data-icon="upload"></div>
+            <div><strong>Thêm tài liệu mới</strong><span>PDF · tối đa 50 MB</span></div>
+          </div>
+        </aside>
+
+        <main class="reader-area" id="readerArea">
+          <button class="edge-toggle left-toggle" id="libraryToggle" aria-label="Đóng mở học liệu" data-icon="chevron-left"></button>
+          <section class="reader-toolbar" id="readerToolbar" aria-label="Công cụ đọc tài liệu">
+            <div class="tool-group mode-tools">
+              <button class="tool-button active" data-mode="read"><span data-icon="cursor"></span>Đọc</button>
+              <button class="tool-button" data-mode="pen"><span data-icon="pen"></span>Bút</button>
+              <button class="tool-button" data-mode="highlight"><span data-icon="highlighter"></span>Highlight</button>
+              <button class="icon-button" id="moreToolsButton" aria-label="Thêm công cụ" data-icon="more"></button>
+            </div>
+            <div class="toolbar-separator"></div>
+            <button class="page-note-pill" id="pageNotePill">Trang 1 · 0 note</button>
+            <div class="zoom-control">
+              <button id="zoomOutButton" aria-label="Thu nhỏ">−</button><span id="zoomLabel">90%</span><button id="zoomInButton" aria-label="Phóng to">+</button>
+            </div>
+            <div class="toolbar-separator"></div>
+            <div class="tool-group compact-tools">
+              <button class="icon-button" id="addNoteButton" aria-label="Thêm ghi chú" data-icon="plus"></button>
+              <button class="icon-button" id="undoButton" aria-label="Hoàn tác" data-icon="undo"></button>
+              <button class="icon-button" id="clearButton" aria-label="Xóa chú thích trang" data-icon="trash"></button>
+            </div>
+          </section>
+
+          <div class="reader-scroll" id="readerScroll">
+            <div class="loading-state hidden" id="loadingState">
+              <div class="spinner"></div><strong>Đang chuẩn bị tài liệu…</strong><span id="loadingDetail">Đọc nội dung từng trang</span>
+            </div>
+            <div class="pages-host" id="pagesHost"></div>
+          </div>
+
+          <nav class="page-navigator" aria-label="Điều hướng trang">
+            <button class="icon-button" id="previousPageButton" aria-label="Trang trước" data-icon="chevron-left"></button>
+            <span>Trang <strong id="currentPageLabel">1</strong> / <span id="totalPagesLabel">5</span></span>
+            <button class="icon-button" id="nextPageButton" aria-label="Trang sau" data-icon="chevron-right"></button>
+          </nav>
+          <button class="edge-toggle right-toggle" id="tutorToggle" aria-label="Đóng mở trợ giảng" data-icon="bot"></button>
+        </main>
+
+        <aside class="tutor-panel" id="tutorPanel" aria-label="VLearn Tutor">
+          <div class="panel-heading tutor-heading">
+            <div class="heading-icon bot-icon" data-icon="bot"></div>
+            <div><h2>VLearn Tutor</h2><p><span class="online-dot"></span>Trợ lý học theo ngữ cảnh</p></div>
+            <div class="tutor-head-actions">
+              <button class="icon-button" id="newChatButton" aria-label="Cuộc trò chuyện mới" data-icon="plus"></button>
+              <button class="icon-button panel-close" id="closeTutorButton" aria-label="Đóng Tutor" data-icon="x"></button>
+            </div>
+          </div>
+          <div class="quota-block">
+            <div><span>Quota Tutor trong ngày</span><strong id="quotaLabel">0 / 15 câu</strong></div>
+            <div class="quota-row"><div class="progress"><span id="quotaProgress"></span></div><button class="byok-chip" id="aiStatusButton"><span data-icon="key"></span><span id="aiModeLabel">DEMO</span></button></div>
+          </div>
+          <div class="chat-scroll" id="chatMessages"></div>
+          <form class="chat-composer" id="chatForm">
+            <div class="composer-context">Đang hỏi theo <strong id="composerPage">trang 1</strong></div>
+            <div class="composer-row">
+              <textarea id="chatInput" rows="1" maxlength="2000" placeholder="Nhập câu hỏi về tài liệu…"></textarea>
+              <button type="submit" id="sendButton" aria-label="Gửi câu hỏi" data-icon="send"></button>
+            </div>
+          </form>
+        </aside>
+      </div>
+
+      <div class="selection-menu hidden" id="selectionMenu">
+        <button data-action="ask"><span data-icon="bot"></span>Hỏi AI</button>
+        <button data-action="confused"><span data-icon="alert"></span>Báo bối rối</button>
+        <button data-action="note"><span data-icon="note"></span>Ghi chú</button>
+      </div>
+
+      <div class="modal-backdrop hidden" id="uploadModal">
+        <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="uploadTitle">
+          <button class="icon-button modal-close" data-close-modal="uploadModal" aria-label="Đóng" data-icon="x"></button>
+          <div class="modal-icon" data-icon="upload"></div>
+          <h2 id="uploadTitle">Tải slide của bạn lên</h2>
+          <p>PDF được xử lý trong trình duyệt và không có nút tải xuống trong giao diện người học.</p>
+          <label class="drop-zone" id="dropZone">
+            <input type="file" id="fileInput" accept="application/pdf,.pdf" hidden />
+            <span class="drop-icon" data-icon="file"></span>
+            <strong>Kéo thả PDF vào đây</strong>
+            <span>hoặc bấm để chọn file · tối đa 50 MB</span>
+          </label>
+          <div class="privacy-note"><span data-icon="shield"></span><span>Chỉ văn bản liên quan được gửi tới Tutor khi bạn chủ động đặt câu hỏi.</span></div>
+        </section>
+      </div>
+
+      <div class="modal-backdrop hidden" id="noteModal">
+        <section class="modal-card note-modal" role="dialog" aria-modal="true" aria-labelledby="noteTitle">
+          <button class="icon-button modal-close" data-close-modal="noteModal" aria-label="Đóng" data-icon="x"></button>
+          <div class="modal-kicker">GHI CHÚ TRANG <span id="notePageLabel">1</span></div>
+          <h2 id="noteTitle">Bạn muốn ghi nhớ điều gì?</h2>
+          <textarea id="noteInput" rows="5" maxlength="1000" placeholder="Nhập ghi chú của bạn…"></textarea>
+          <div class="modal-actions"><button class="secondary-button" data-close-modal="noteModal">Hủy</button><button class="primary-button" id="saveNoteButton">Lưu ghi chú</button></div>
+        </section>
+      </div>
+
+      <div class="modal-backdrop hidden" id="notesListModal">
+        <section class="modal-card notes-list-modal" role="dialog" aria-modal="true" aria-labelledby="notesListTitle">
+          <button class="icon-button modal-close" data-close-modal="notesListModal" aria-label="Đóng" data-icon="x"></button>
+          <div class="modal-kicker">TRANG <span id="notesListPage">1</span></div>
+          <h2 id="notesListTitle">Ghi chú của bạn</h2>
+          <div id="notesList" class="notes-list"></div>
+        </section>
+      </div>
+
+      <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+    </div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
