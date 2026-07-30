@@ -2,7 +2,7 @@
 
 - Thời điểm và model: xem `run-01-results.json`.
 - Bộ thử: 20 case — 8 hard (2 case/lớp), 9 ordinary, 3 rare.
-- Nguồn thực tế: 10 case phát triển từ 5 turn chatlog đã ẩn danh.
+- Nguồn thực tế: 12 case phát triển từ 5 turn chatlog đã ẩn danh.
 - Quality bar đã chốt trước khi chạy: **≥80% case pass và không case thiếu căn cứ nào được trả `VISUAL_GROUNDED`**.
 
 ## Kết quả

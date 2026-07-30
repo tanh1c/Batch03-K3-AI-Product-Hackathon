@@ -176,17 +176,17 @@ Tạo thư mục `eval/`.
 
 Tạo thư mục `validation/`.
 
-- [ ] Test với ít nhất 5 người ngoài nhóm; ưu tiên 3 willing users từ CP1 và thành viên nhóm khác.
-- [ ] Có ít nhất 2 willing users đã khai từ CP1 trong số người test nếu CP1 đã đăng ký họ.
-- [ ] Mỗi phiên giao một task thật rồi im lặng quan sát, không hướng dẫn thao tác.
+- [x] Test với ít nhất 5 người ngoài nhóm; ưu tiên 3 willing users từ CP1 và thành viên nhóm khác.
+- [x] Có ít nhất 2 willing users đã khai từ CP1 trong số người test nếu CP1 đã đăng ký họ.
+- [x] Mỗi phiên giao một task thật rồi im lặng quan sát, không hướng dẫn thao tác.
 - [ ] Hỏi đúng ba câu:
   - [ ] Điều gì khó hiểu hoặc khó chịu nhất?
   - [ ] Kết quả này bạn có tin không — vì sao?
   - [ ] Bạn có dùng thật không — vì sao/vì sao chưa?
-- [ ] Tạo `validation/feedback-log.md` với tên/vai, willing user hay không, task, quan sát, quote nguyên văn và mức nghiêm trọng.
-- [ ] Tổng hợp chủ đề lặp, thay đổi trước demo, quyết định giữ nguyên và backlog.
-- [ ] Đưa ít nhất một quyết định vào `spec.md` §9 Changelog.
-- [ ] Không tạo feedback giả hoặc viết lại quote cho đẹp.
+- [x] Tạo `validation/feedback-log.md` với tên/vai, willing user hay không, task, quan sát, quote nguyên văn và mức nghiêm trọng.
+- [x] Tổng hợp chủ đề lặp, thay đổi trước demo, quyết định giữ nguyên và backlog.
+- [x] Đưa ít nhất một quyết định vào `spec.md` §9 Changelog.
+- [x] Không tạo feedback giả hoặc viết lại quote cho đẹp.
 
 ---
 
@@ -262,7 +262,7 @@ Tạo đúng một file `demo-slides.pdf` gồm 6 trang; mỗi trang có ít nh�
 | R3 Chỗ khó & kịch bản | 11 | `spec.md` §5-§6 | Có contract kỹ thuật, chưa đủ ≥8 kịch bản/spec |
 | R4 Kiểm thử | 15 | `spec.md` §7 + `eval/` | Có unit test, chưa có golden-set/eval rubric |
 | R5 Prototype | 8 | `codebase/` + demo + real-call trace | MVP gần đủ; thiếu trace redacted trong repo và khai mức prototype |
-| R6 Validation | 8 | `validation/` + changelog | Chưa có |
+| R6 Validation | 8 | `validation/` + changelog | Có 5 phiên ngoài nhóm, feedback log và quyết định changelog; còn thiếu 3 câu trả lời có lý do |
 | R7 Quy trình/repo | 3 | cấu trúc chuẩn + README phân công | Chưa đủ |
 
 ## 10. Gate hoàn tất cuối cùng
