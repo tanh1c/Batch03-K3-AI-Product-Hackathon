@@ -42,6 +42,9 @@ const validInput = {
   question: "Giải thích hình này",
   slideNumber: 18,
   nearbyText: "Machine Learning và Deep Learning",
+  selectedText: "Raw data · Neural network · Prediction",
+  contentKind: "mixed",
+  selectionCoverage: 0.72,
 };
 
 test("accepts a valid visual request and records one redacted trace", async (t) => {
@@ -104,6 +107,36 @@ test("rejects a missing image before calling AI", async (t) => {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ ...validInput, imageData: "" }),
+  });
+
+  assert.equal(response.status, 400);
+  assert.equal(calls, 0);
+});
+
+test("rejects an invalid selection coverage before calling AI", async (t) => {
+  let calls = 0;
+  const { server, baseUrl } = await startServer({ analyze: async () => { calls += 1; return grounded; } });
+  t.after(() => server.close());
+
+  const response = await fetch(`${baseUrl}/api/analyze`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ...validInput, selectionCoverage: 1.1 }),
+  });
+
+  assert.equal(response.status, 400);
+  assert.equal(calls, 0);
+});
+
+test("rejects an unknown circled content kind before calling AI", async (t) => {
+  let calls = 0;
+  const { server, baseUrl } = await startServer({ analyze: async () => { calls += 1; return grounded; } });
+  t.after(() => server.close());
+
+  const response = await fetch(`${baseUrl}/api/analyze`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ...validInput, contentKind: "photo" }),
   });
 
   assert.equal(response.status, 400);

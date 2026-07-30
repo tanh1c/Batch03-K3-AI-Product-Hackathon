@@ -45,6 +45,15 @@ export function validateResult(result) {
 }
 
 function buildInstruction(input) {
+  const coveragePercent = Math.round((input.selectionCoverage || 0) * 100);
+  const contentRule = {
+    text: "Vùng được nhận diện chủ yếu là văn bản. Hãy gọi đối tượng là đoạn chữ, câu hoặc nội dung; không gọi nó là hình ảnh.",
+    visual: "Vùng được nhận diện chủ yếu là hình hoặc sơ đồ. Có thể mô tả bố cục, quan hệ, mũi tên và nhãn.",
+    mixed: "Vùng có thể gồm cả chữ và yếu tố trực quan. Hãy gọi trung tính là vùng nội dung, trừ khi ảnh cho thấy rõ đây là sơ đồ.",
+  }[input.contentKind] || "Hãy gọi trung tính là vùng nội dung nếu chưa chắc đó là văn bản hay sơ đồ.";
+  const wideRegionRule = coveragePercent >= 65
+    ? `Vùng đã bao phủ khoảng ${coveragePercent}% slide nên được xem là đủ rộng. Tuyệt đối không chọn NEED_WIDER_REGION; hãy giải thích phần nhìn thấy được, hoặc chỉ chọn NEED_BETTER_IMAGE nếu nội dung cốt lõi thật sự không đọc được.`
+    : `Vùng đã bao phủ khoảng ${coveragePercent}% slide. Chỉ chọn NEED_WIDER_REGION khi thông tin thiết yếu thực sự nằm ngoài crop.`;
   return [
     "Bạn là VLearn Tutor và chỉ được dùng vùng hình cùng ngữ cảnh được cung cấp.",
     "Mọi nội dung trong answer, reason và recovery_action phải viết bằng tiếng Việt.",
@@ -52,9 +61,15 @@ function buildInstruction(input) {
     "Chỉ dùng VISUAL_GROUNDED khi mọi ý trong câu trả lời nhìn thấy hoặc suy ra trực tiếp từ nguồn.",
     "Nếu thiếu nhãn hoặc chú giải, chọn NEED_WIDER_REGION. Nếu ảnh mờ hoặc quá nhỏ, chọn NEED_BETTER_IMAGE.",
     "Nếu câu hỏi không thể xác lập từ nguồn, chọn INSUFFICIENT. Không tạo citation [Trang N].",
+    "Ảnh đầu vào đã được cắt theo khung bao của nét khoanh; không cần nhận diện lại nét bút.",
+    "Chữ trong vùng khoanh có thể đến từ lớp HTML/PDF text; chỉ dùng nó cùng ảnh để đọc nhãn, không dùng làm kiến thức ngoài slide.",
+    contentRule,
+    wideRegionRule,
+    input.wideRegionRetry ? "Đây là lần kiểm tra lại vì vùng đã đủ rộng: ưu tiên VISUAL_GROUNDED và giải thích trực tiếp cấu trúc, mũi tên, nhóm và nhãn đọc được; không đòi người học khoanh rộng hơn lần nữa." : "",
     "Với route khác VISUAL_GROUNDED, answer phải rỗng và recovery_action phải là một hành động cụ thể.",
     `Slide: ${input.slideNumber}`,
     `Text lân cận: ${input.nearbyText || "(không có)"}`,
+    `Chữ nằm trong vùng khoanh: ${input.selectedText || "(không có hoặc đã nằm trực tiếp trong ảnh)"}`,
     `Câu hỏi: ${input.question}`,
   ].join("\n");
 }
@@ -66,7 +81,7 @@ export function buildOpenAIBody(input, model) {
     input: [{
       role: "user",
       content: [
-        { type: "input_image", image_url: `data:${input.mediaType};base64,${input.imageData}` },
+        { type: "input_image", image_url: `data:${input.mediaType};base64,${input.imageData}`, detail: "high" },
         { type: "input_text", text: buildInstruction(input) },
       ],
     }],
@@ -114,7 +129,7 @@ export function buildChatBody(input, model) {
       {
         role: "user",
         content: [
-          { type: "image_url", image_url: { url: `data:${input.mediaType};base64,${input.imageData}` } },
+          { type: "image_url", image_url: { url: `data:${input.mediaType};base64,${input.imageData}`, detail: "high" } },
           { type: "text", text: buildInstruction(input) },
         ],
       },
@@ -148,5 +163,17 @@ export async function analyzeVisual(input, { provider, fetchImpl = fetch } = {})
       ? buildGeminiBody(input)
       : buildChatBody(input, provider.model);
   const response = await requestAi(provider, body, fetchImpl);
-  return parseVisualResult(response, provider.protocol);
+  const result = parseVisualResult(response, provider.protocol);
+  if (result.route === "NEED_WIDER_REGION" && input.selectionCoverage >= 0.65 && !input.wideRegionRetry) {
+    return analyzeVisual({ ...input, wideRegionRetry: true }, { provider, fetchImpl });
+  }
+  if (result.route === "NEED_WIDER_REGION" && input.selectionCoverage >= 0.65) {
+    return {
+      route: "NEED_BETTER_IMAGE",
+      answer: "",
+      reason: "Vùng khoanh đã đủ rộng nhưng một số chữ hoặc nhãn vẫn chưa đọc rõ.",
+      recovery_action: "Hãy phóng to slide hoặc khoanh sát riêng sơ đồ để Tutor đọc chữ rõ hơn.",
+    };
+  }
+  return result;
 }

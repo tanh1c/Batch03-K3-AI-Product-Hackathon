@@ -1,5 +1,6 @@
 import * as pdfjsLib from "/vendor/pdf.mjs";
-import { toPixelBounds } from "/geometry.mjs";
+import html2canvas from "/vendor/html2canvas.esm.js";
+import { boundsFromPoints, classifyCircledContent, mergeHighlightRects, selectTextFragmentsByBox, toPixelBounds } from "/geometry.mjs";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = "/vendor/pdf.worker.mjs";
 
@@ -18,6 +19,7 @@ const DEMO_PAGES = [
   {
     title: "Machine Learning và Deep Learning",
     text: "So sánh cách hai phương pháp xử lý đặc trưng trước khi dự đoán.",
+    details: "Sơ đồ Hai cách học từ dữ liệu. Machine Learning: dữ liệu thô đi qua bước đặc trưng được thiết kế thủ công, sau đó vào mô hình Machine Learning để tạo dự đoán. Deep Learning: dữ liệu thô đi trực tiếp qua mạng nơ-ron để học đặc trưng và tạo dự đoán.",
     layout: "visual",
   },
   {
@@ -36,6 +38,14 @@ const DEMO_PAGES = [
     layout: "closing",
   },
 ];
+
+function demoPageContext(page) {
+  return [page.title, page.text, page.details]
+    .filter(Boolean)
+    .join(". ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 const ICONS = {
   menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
@@ -70,6 +80,7 @@ const ICONS = {
 };
 
 const STORAGE_KEY = "vlearn-reader-state-v1";
+const DAILY_QUESTION_LIMIT = 50;
 const stored = readStoredState();
 const todayKey = new Date().toISOString().slice(0, 10);
 const state = {
@@ -77,7 +88,7 @@ const state = {
   uploadedDocuments: [],
   pdfDocument: null,
   pdfPages: [],
-  pageTexts: DEMO_PAGES.map((page) => page.text),
+  pageTexts: DEMO_PAGES.map(demoPageContext),
   currentPage: 1,
   totalPages: DEMO_PAGES.length,
   zoom: stored.zoom || 0.9,
@@ -91,9 +102,14 @@ const state = {
   theme: stored.theme || "light",
   selectionText: "",
   selectionPage: 1,
+  composerSelection: null,
   visualSelection: null,
   noteDraftPage: 1,
   chat: [],
+  summaryChats: stored.summaryChats || {},
+  activeChatSession: "tutor",
+  summaryPromptDismissed: new Set(),
+  summaryLoading: false,
   questionCount: stored.questionDate === todayKey ? (stored.questionCount || 0) : 0,
   aiConfigured: false,
   aiProvider: null,
@@ -104,6 +120,7 @@ const state = {
   scrollFrame: null,
   activeHighlight: null,
   activeRegion: null,
+  pendingTextHighlight: null,
   highlightSaveTimer: null,
 };
 
@@ -135,6 +152,10 @@ const elements = {
   highlightNoteInput: document.querySelector("#highlightNoteInput"),
   regionPopover: document.querySelector("#regionPopover"),
   regionTitle: document.querySelector("#regionTitle"),
+  regionDescription: document.querySelector("#regionDescription"),
+  highlightAskPopover: document.querySelector("#highlightAskPopover"),
+  lessonSummaryPrompt: document.querySelector("#lessonSummaryPrompt"),
+  chatSessionTabs: document.querySelector("#chatSessionTabs"),
   uploadModal: document.querySelector("#uploadModal"),
   noteModal: document.querySelector("#noteModal"),
   notesListModal: document.querySelector("#notesListModal"),
@@ -212,7 +233,7 @@ function bindEvents() {
 
   elements.readerScroll.addEventListener("scroll", () => {
     if (state.scrollFrame) return;
-    state.scrollFrame = requestAnimationFrame(() => { state.scrollFrame = null; updateCurrentPageFromScroll(); });
+    state.scrollFrame = requestAnimationFrame(() => { state.scrollFrame = null; updateCurrentPageFromScroll(); maybeShowLessonSummaryPrompt(); });
   }, { passive: true });
   elements.chatForm.addEventListener("submit", sendQuestion);
   elements.chatInput.addEventListener("input", autoGrowComposer);
@@ -222,15 +243,18 @@ function bindEvents() {
   elements.selectionMenu.addEventListener("click", handleSelectionAction);
   elements.highlightPopover.addEventListener("click", handleHighlightPopoverAction);
   elements.highlightNoteInput.addEventListener("input", handleHighlightNoteInput);
+  elements.highlightAskPopover.addEventListener("click", handleHighlightAskAction);
   elements.regionPopover.addEventListener("click", handleRegionAction);
+  elements.lessonSummaryPrompt.addEventListener("click", handleLessonSummaryAction);
+  elements.chatSessionTabs.addEventListener("click", handleChatSessionChange);
   document.addEventListener("pointerdown", (event) => {
     if (!elements.selectionMenu.contains(event.target) && !event.target.closest(".page-paper")) hideSelectionMenu();
-    if (!elements.highlightPopover.contains(event.target) && !event.target.closest(".annotation-marker")) hideHighlightPopover();
+    if (!elements.highlightPopover.contains(event.target) && !elements.highlightAskPopover.contains(event.target) && !event.target.closest(".annotation-marker")) hideHighlightPopover();
     if (!elements.regionPopover.contains(event.target) && !event.target.closest(".annotation-canvas")) hideRegionPopover();
     if (!elements.moreToolsPanel.contains(event.target) && !event.target.closest("#moreToolsButton") && !event.target.closest(".page-paper")) hideMoreToolsPanel();
   });
   window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") { hideSelectionMenu(); hideHighlightPopover(); hideRegionPopover(); hideMoreToolsPanel(); document.querySelectorAll(".modal-backdrop:not(.hidden)").forEach((modal) => closeModal(modal.id)); }
+    if (event.key === "Escape") { hideSelectionMenu(); hideHighlightPopover(); hideHighlightAskPopover(); hideRegionPopover(); hideMoreToolsPanel(); elements.lessonSummaryPrompt.classList.add("hidden"); document.querySelectorAll(".modal-backdrop:not(.hidden)").forEach((modal) => closeModal(modal.id)); }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z" && !event.target.matches("textarea,input")) { event.preventDefault(); undoAnnotation(); }
   });
 
@@ -289,7 +313,7 @@ async function activateDocument(id) {
     state.document = { id: "demo-foundation", name: "AI trong hành động.pdf", type: "demo" };
     state.pdfDocument = null;
     state.pdfPages = [];
-    state.pageTexts = DEMO_PAGES.map((page) => page.text);
+    state.pageTexts = DEMO_PAGES.map(demoPageContext);
     state.totalPages = DEMO_PAGES.length;
     state.currentPage = 1;
     renderDemoDocument();
@@ -602,13 +626,22 @@ function drawAnnotations(pageNumber, preview = null) {
       const y = Math.min(annotation.start.y, annotation.end.y) * canvas.height;
       const width = Math.abs(annotation.end.x - annotation.start.x) * canvas.width;
       const height = Math.abs(annotation.end.y - annotation.start.y) * canvas.height;
-      context.fillStyle = "rgba(255, 217, 40, .38)";
+      context.fillStyle = "rgba(255, 196, 61, .2)";
       context.fillRect(x, y, width, height);
-    } else if (annotation.kind === "text-highlight" && annotation.rects?.length) {
-      context.fillStyle = "rgba(255, 214, 41, .52)";
-      annotation.rects.forEach((highlightRect) => {
-        context.fillRect(highlightRect.x * canvas.width, highlightRect.y * canvas.height, highlightRect.width * canvas.width, highlightRect.height * canvas.height);
+    } else if ((annotation.kind === "text-highlight" || annotation.kind === "ai-highlight") && annotation.rects?.length) {
+      context.fillStyle = annotation.kind === "ai-highlight"
+        ? "rgba(20, 166, 151, .22)"
+        : "rgba(255, 196, 61, .22)";
+      context.beginPath();
+      mergeHighlightRects(annotation.rects).forEach((highlightRect) => {
+        const x = highlightRect.x * canvas.width;
+        const y = highlightRect.y * canvas.height;
+        const width = highlightRect.width * canvas.width;
+        const height = highlightRect.height * canvas.height;
+        if (typeof context.roundRect === "function") context.roundRect(x, y, width, height, Math.min(4, height * 0.18));
+        else context.rect(x, y, width, height);
       });
+      context.fill();
     } else if ((annotation.kind === "pen" || annotation.kind === "circle") && annotation.points?.length > 1) {
       context.beginPath();
       annotation.points.forEach((point, index) => {
@@ -645,7 +678,7 @@ function renderAnnotationMarkers(pageNumber) {
   holder.querySelectorAll("[data-highlight-id]").forEach((button) => button.addEventListener("click", (event) => {
     event.stopPropagation();
     const bounds = button.getBoundingClientRect();
-    showHighlightPopover(pageNumber, button.dataset.highlightId, bounds.left, bounds.bottom + 8);
+    showHighlightPopover(pageNumber, button.dataset.highlightId, bounds.left, bounds.bottom + 8, false);
   }));
 }
 
@@ -669,7 +702,7 @@ function eraseAnnotationAtPoint(pageNumber, point, canvas) {
 function annotationContainsPoint(annotation, point, canvas) {
   const toleranceX = 10 / Math.max(1, canvas.clientWidth);
   const toleranceY = 10 / Math.max(1, canvas.clientHeight);
-  if (annotation.kind === "text-highlight") {
+  if (annotation.kind === "text-highlight" || annotation.kind === "ai-highlight") {
     return annotation.rects?.some((rect) => point.x >= rect.x - toleranceX && point.x <= rect.x + rect.width + toleranceX && point.y >= rect.y - toleranceY && point.y <= rect.y + rect.height + toleranceY);
   }
   if (annotation.kind === "highlight" && annotation.start && annotation.end) {
@@ -726,6 +759,56 @@ function clearPageAnnotations() {
 
 function wireReadInteractions(shell, pageNumber) {
   const paper = shell.querySelector(".page-paper");
+  let highlightGesture = null;
+  let readGesture = null;
+
+  paper.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || event.target.closest("button,textarea,input")) return;
+    const paperBounds = paper.getBoundingClientRect();
+    if (state.mode === "read") {
+      readGesture = {
+        startClient: { x: event.clientX, y: event.clientY },
+        start: normalizedPaperPoint(event, paperBounds),
+        current: normalizedPaperPoint(event, paperBounds),
+        fragments: collectSelectableTextFragments(paper, paperBounds),
+        paperBounds,
+      };
+      return;
+    }
+    if (state.mode !== "highlight") return;
+    event.preventDefault();
+    window.getSelection()?.removeAllRanges();
+    highlightGesture = {
+      pointerId: event.pointerId,
+      start: normalizedPaperPoint(event, paperBounds),
+      current: normalizedPaperPoint(event, paperBounds),
+      fragments: collectSelectableTextFragments(paper, paperBounds),
+      paperBounds,
+    };
+    try { paper.setPointerCapture(event.pointerId); } catch { /* pointer may already be released */ }
+    drawTextHighlightPreview(pageNumber, highlightGesture);
+  });
+  paper.addEventListener("pointermove", (event) => {
+    if (!highlightGesture || event.pointerId !== highlightGesture.pointerId) return;
+    event.preventDefault();
+    highlightGesture.current = normalizedPaperPoint(event, highlightGesture.paperBounds);
+    drawTextHighlightPreview(pageNumber, highlightGesture);
+  });
+  paper.addEventListener("pointerup", (event) => {
+    if (!highlightGesture || event.pointerId !== highlightGesture.pointerId) return;
+    event.preventDefault();
+    highlightGesture.current = normalizedPaperPoint(event, highlightGesture.paperBounds);
+    const completed = highlightGesture;
+    highlightGesture = null;
+    try { paper.releasePointerCapture(event.pointerId); } catch { /* pointer capture is optional */ }
+    createTextHighlightFromGesture(paper, pageNumber, completed);
+  });
+  paper.addEventListener("pointercancel", () => {
+    highlightGesture = null;
+    readGesture = null;
+    window.getSelection()?.removeAllRanges();
+    drawAnnotations(pageNumber);
+  });
   paper.addEventListener("contextmenu", (event) => {
     if (state.mode !== "read") return;
     event.preventDefault();
@@ -733,59 +816,152 @@ function wireReadInteractions(shell, pageNumber) {
     state.selectionText = window.getSelection()?.toString().trim() || "";
     state.selectionPage = pageNumber;
     showSelectionMenu(event.clientX, event.clientY);
+    window.getSelection()?.removeAllRanges();
   });
   paper.addEventListener("mouseup", (event) => {
     if (event.button === 2 || event.target.closest("[data-visual-region]")) return;
     if (state.mode === "highlight") {
-      createTextHighlightFromSelection(paper, pageNumber);
+      window.getSelection()?.removeAllRanges();
       return;
     }
     if (state.mode !== "read") return;
-    const text = window.getSelection()?.toString().trim() || "";
-    if (text.length >= 3) {
+    const completed = readGesture;
+    readGesture = null;
+    if (!completed || Math.hypot(event.clientX - completed.startClient.x, event.clientY - completed.startClient.y) < 4) return;
+    completed.current = normalizedPaperPoint(event, completed.paperBounds);
+    const selected = selectedGestureFragments(completed);
+    const pending = stagePendingTextHighlight(pageNumber, selected, completed.paperBounds);
+    if (pending) {
       clearVisualSelection();
-      state.selectionText = text.slice(0, 800);
+      state.selectionText = pending.annotation.text;
       state.selectionPage = pageNumber;
       showSelectionMenu(event.clientX, event.clientY - 48);
     }
+    window.getSelection()?.removeAllRanges();
   });
 }
 
-function createTextHighlightFromSelection(paper, pageNumber) {
-  const selection = window.getSelection();
-  if (!selection?.rangeCount || selection.isCollapsed) return;
-  const range = selection.getRangeAt(0);
-  const commonNode = range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE ? range.commonAncestorContainer : range.commonAncestorContainer.parentElement;
-  if (!commonNode || !paper.contains(commonNode)) return;
-  const text = selection.toString().replace(/\s+/g, " ").trim().slice(0, 800);
-  if (text.length < 2) return;
-  const paperBounds = paper.getBoundingClientRect();
-  const clientRects = [...range.getClientRects()].filter((rect) => rect.width > 1 && rect.height > 1 && rect.right > paperBounds.left && rect.left < paperBounds.right && rect.bottom > paperBounds.top && rect.top < paperBounds.bottom);
-  if (!clientRects.length) return;
-  const rects = clientRects.map((rect) => {
-    const left = Math.max(rect.left, paperBounds.left);
-    const top = Math.max(rect.top, paperBounds.top);
-    const right = Math.min(rect.right, paperBounds.right);
-    const bottom = Math.min(rect.bottom, paperBounds.bottom);
-    return {
-      x: (left - paperBounds.left) / paperBounds.width,
-      y: (top - paperBounds.top) / paperBounds.height,
-      width: (right - left) / paperBounds.width,
-      height: (bottom - top) / paperBounds.height,
-    };
+function normalizedPaperPoint(event, paperBounds) {
+  return {
+    x: Math.max(0, Math.min(1, (event.clientX - paperBounds.left) / paperBounds.width)),
+    y: Math.max(0, Math.min(1, (event.clientY - paperBounds.top) / paperBounds.height)),
+  };
+}
+
+function collectSelectableTextFragments(paper, paperBounds) {
+  const root = paper.querySelector(".pdf-text-layer") || paper.querySelector(".demo-slide");
+  if (!root) return [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const text = node.textContent?.trim();
+      return text && !node.parentElement?.closest("button,textarea,input") ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+    },
   });
+  const fragments = [];
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    const matcher = /\S+/gu;
+    let match;
+    while ((match = matcher.exec(node.textContent))) {
+      const range = document.createRange();
+      range.setStart(node, match.index);
+      range.setEnd(node, match.index + match[0].length);
+      [...range.getClientRects()].forEach((rect) => {
+        const left = Math.max(rect.left, paperBounds.left);
+        const top = Math.max(rect.top, paperBounds.top);
+        const right = Math.min(rect.right, paperBounds.right);
+        const bottom = Math.min(rect.bottom, paperBounds.bottom);
+        if (right - left <= 1 || bottom - top <= 1) return;
+        fragments.push({
+          text: match[0],
+          x: (left - paperBounds.left) / paperBounds.width,
+          y: (top - paperBounds.top) / paperBounds.height,
+          width: (right - left) / paperBounds.width,
+          height: (bottom - top) / paperBounds.height,
+        });
+      });
+    }
+  }
+  return fragments;
+}
+
+function selectedGestureFragments(gesture) {
+  return selectTextFragmentsByBox(gesture.fragments, gesture.start, gesture.current, {
+    paddingX: 4 / Math.max(1, gesture.paperBounds.width),
+    paddingY: 4 / Math.max(1, gesture.paperBounds.height),
+    clickTolerance: Math.max(8 / Math.max(1, gesture.paperBounds.width), 8 / Math.max(1, gesture.paperBounds.height)),
+  });
+}
+
+function drawTextHighlightPreview(pageNumber, gesture) {
+  const selected = selectedGestureFragments(gesture);
+  const preview = selected.length ? { kind: "text-highlight", rects: selected.map(({ x, y, width, height }) => ({ x, y, width, height })) } : null;
+  drawAnnotations(pageNumber, preview);
+}
+
+function createTextHighlightFromGesture(paper, pageNumber, gesture) {
+  const selected = selectedGestureFragments(gesture);
+  window.getSelection()?.removeAllRanges();
+  if (!selected.length) {
+    drawAnnotations(pageNumber);
+    return showToast("Hãy kéo trực tiếp qua phần chữ bạn muốn highlight.", "error");
+  }
+  const text = selected.map((fragment) => fragment.text).join(" ").replace(/\s+/g, " ").trim().slice(0, 800);
+  const rects = mergeHighlightRects(selected.map(({ x, y, width, height }) => ({ x, y, width, height })));
   const annotation = { id: createAnnotationId(), kind: "text-highlight", rects, text, note: "", color: "#ffd629", createdAt: Date.now() };
   getAnnotations(pageNumber).push(annotation);
-  selection.removeAllRanges();
   persistState();
   drawAnnotations(pageNumber);
   renderAnnotationMarkers(pageNumber);
   updateChrome();
-  const anchorRect = clientRects.at(-1);
-  showHighlightPopover(pageNumber, annotation.id, clientRects[0].left, anchorRect.bottom + 8);
+  const anchor = selected.at(-1);
+  showHighlightPopover(
+    pageNumber,
+    annotation.id,
+    gesture.paperBounds.left + selected[0].x * gesture.paperBounds.width,
+    gesture.paperBounds.top + (anchor.y + anchor.height) * gesture.paperBounds.height + 8,
+    true,
+  );
 }
 
-function showHighlightPopover(pageNumber, annotationId, x, y) {
+function stagePendingTextHighlight(pageNumber, selected, paperBounds) {
+  discardPendingTextHighlight();
+  if (!selected.length) return null;
+  const text = selected.map((fragment) => fragment.text).join(" ").replace(/\s+/g, " ").trim().slice(0, 800);
+  if (text.length < 2) return null;
+  const rects = mergeHighlightRects(selected.map(({ x, y, width, height }) => ({ x, y, width, height })));
+  const anchor = selected.at(-1);
+  const pending = {
+    page: pageNumber,
+    annotation: { id: createAnnotationId(), kind: "text-highlight", rects, text, note: "", color: "#ffd629", createdAt: Date.now() },
+    anchorX: paperBounds.left + selected[0].x * paperBounds.width,
+    anchorY: paperBounds.top + (anchor.y + anchor.height) * paperBounds.height + 8,
+  };
+  state.pendingTextHighlight = pending;
+  drawAnnotations(pageNumber, pending.annotation);
+  return pending;
+}
+
+function discardPendingTextHighlight() {
+  const pending = state.pendingTextHighlight;
+  if (!pending) return;
+  state.pendingTextHighlight = null;
+  drawAnnotations(pending.page);
+}
+
+function commitPendingTextHighlight() {
+  const pending = state.pendingTextHighlight;
+  if (!pending) return null;
+  state.pendingTextHighlight = null;
+  getAnnotations(pending.page).push(pending.annotation);
+  persistState();
+  drawAnnotations(pending.page);
+  renderAnnotationMarkers(pending.page);
+  updateChrome();
+  return pending;
+}
+
+function showHighlightPopover(pageNumber, annotationId, x, y, offerTutor = false) {
   const annotation = getAnnotations(pageNumber).find((item) => ensureAnnotationId(item) === annotationId);
   if (!annotation) return;
   hideSelectionMenu();
@@ -795,12 +971,56 @@ function showHighlightPopover(pageNumber, annotationId, x, y) {
   elements.highlightNoteInput.value = annotation.note || "";
   elements.highlightPopover.classList.remove("hidden");
   positionPopover(elements.highlightPopover, x, y);
+  if (offerTutor) showHighlightAskPopover();
+  else hideHighlightAskPopover();
   setTimeout(() => elements.highlightNoteInput.focus(), 60);
 }
 
 function hideHighlightPopover() {
   elements.highlightPopover.classList.add("hidden");
+  hideHighlightAskPopover();
   state.activeHighlight = null;
+}
+
+function showHighlightAskPopover() {
+  const noteBounds = elements.highlightPopover.getBoundingClientRect();
+  elements.highlightAskPopover.classList.remove("hidden");
+  const askBounds = elements.highlightAskPopover.getBoundingClientRect();
+  const gap = 10;
+  const right = noteBounds.right + gap;
+  const left = right + askBounds.width <= window.innerWidth - 10
+    ? right
+    : Math.max(10, noteBounds.left - askBounds.width - gap);
+  const top = Math.max(10, Math.min(window.innerHeight - askBounds.height - 10, noteBounds.top));
+  elements.highlightAskPopover.style.left = `${left}px`;
+  elements.highlightAskPopover.style.top = `${top}px`;
+}
+
+function hideHighlightAskPopover() {
+  elements.highlightAskPopover.classList.add("hidden");
+}
+
+function handleHighlightAskAction(event) {
+  const button = event.target.closest("[data-highlight-ask]");
+  if (!button) return;
+  if (button.dataset.highlightAsk === "no") return hideHighlightAskPopover();
+  const active = state.activeHighlight ? { ...state.activeHighlight } : null;
+  const annotation = active && getAnnotations(active.page).find((item) => item.id === active.id);
+  if (!annotation?.text) return hideHighlightAskPopover();
+  state.selectionText = annotation.text;
+  state.selectionPage = active.page;
+  state.currentPage = active.page;
+  state.activeChatSession = "tutor";
+  state.tutorOpen = true;
+  updateCurrentPageClass();
+  updateWorkspace();
+  updateChrome();
+  hideHighlightPopover();
+  void submitQuestion(`Giải thích đoạn đã bôi đen này: “${annotation.text}”`, {
+    visualSelection: null,
+    selectedText: annotation.text,
+    selectedPage: active.page,
+  });
 }
 
 function handleHighlightNoteInput() {
@@ -850,18 +1070,93 @@ function showRegionPopover(pageNumber, annotation) {
   if (!paper || !annotation.points?.length) return;
   hideHighlightPopover();
   hideSelectionMenu();
-  state.activeRegion = { page: pageNumber, id: ensureAnnotationId(annotation) };
+  let region = null;
+  try { region = boundsFromPoints(annotation.points, 0.025); } catch { /* validated when Tutor is selected */ }
+  const selectedText = region ? collectTextInsideRegion(paper, region) : "";
+  const contentKind = classifyCircledContent(selectedText, region ? hasExplicitVisualInsideRegion(paper, region) : false);
+  state.activeRegion = { page: pageNumber, id: ensureAnnotationId(annotation), region, contentKind };
   elements.regionTitle.textContent = `Vùng khoanh Trang ${pageNumber}`;
+  elements.regionDescription.textContent = {
+    text: "Bạn muốn Tutor giải thích đoạn nội dung này?",
+    visual: "Bạn muốn Tutor giải thích hình hoặc sơ đồ này?",
+    mixed: "Bạn muốn Tutor giải thích nội dung trong vùng này?",
+  }[contentKind];
   elements.regionPopover.classList.remove("hidden");
   const paperBounds = paper.getBoundingClientRect();
+  const minX = Math.min(...annotation.points.map((point) => point.x));
   const maxX = Math.max(...annotation.points.map((point) => point.x));
   const minY = Math.min(...annotation.points.map((point) => point.y));
-  positionPopover(elements.regionPopover, paperBounds.left + maxX * paperBounds.width + 18, paperBounds.top + minY * paperBounds.height);
+  const maxY = Math.max(...annotation.points.map((point) => point.y));
+  positionRegionPopover({
+    left: paperBounds.left + minX * paperBounds.width,
+    right: paperBounds.left + maxX * paperBounds.width,
+    top: paperBounds.top + minY * paperBounds.height,
+    bottom: paperBounds.top + maxY * paperBounds.height,
+  });
+}
+
+function positionRegionPopover(target) {
+  const popover = elements.regionPopover;
+  const bounds = popover.getBoundingClientRect();
+  const gap = 14;
+  const viewportGap = 10;
+  let side = "right";
+  let left = target.right + gap;
+  let top = target.top + ((target.bottom - target.top) - bounds.height) / 2;
+
+  if (left + bounds.width > window.innerWidth - viewportGap) {
+    const leftCandidate = target.left - bounds.width - gap;
+    if (leftCandidate >= viewportGap) {
+      side = "left";
+      left = leftCandidate;
+    } else {
+      side = "bottom";
+      left = target.left + ((target.right - target.left) - bounds.width) / 2;
+      top = target.bottom + gap;
+      if (top + bounds.height > window.innerHeight - viewportGap) {
+        side = "top";
+        top = target.top - bounds.height - gap;
+      }
+    }
+  }
+
+  left = Math.max(viewportGap, Math.min(window.innerWidth - bounds.width - viewportGap, left));
+  top = Math.max(viewportGap, Math.min(window.innerHeight - bounds.height - viewportGap, top));
+  popover.dataset.side = side;
+  popover.style.left = `${left}px`;
+  popover.style.top = `${top}px`;
 }
 
 function hideRegionPopover() {
   elements.regionPopover.classList.add("hidden");
   state.activeRegion = null;
+}
+
+function hasExplicitVisualInsideRegion(paper, region) {
+  const paperBounds = paper.getBoundingClientRect();
+  const target = {
+    left: paperBounds.left + region.x * paperBounds.width,
+    top: paperBounds.top + region.y * paperBounds.height,
+    right: paperBounds.left + (region.x + region.width) * paperBounds.width,
+    bottom: paperBounds.top + (region.y + region.height) * paperBounds.height,
+  };
+  return [...paper.querySelectorAll("img,.visual-context-stage,.diagram-orbit,.timeline,.card-grid")].some((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0
+      && rect.height > 0
+      && rect.left < target.right
+      && rect.right > target.left
+      && rect.top < target.bottom
+      && rect.bottom > target.top;
+  });
+}
+
+function circledQuestion(contentKind) {
+  return {
+    text: "Giải thích đoạn nội dung mình vừa đánh dấu.",
+    visual: "Giải thích hình hoặc sơ đồ mình vừa đánh dấu.",
+    mixed: "Giải thích nội dung trong vùng mình vừa đánh dấu.",
+  }[contentKind] || "Giải thích nội dung trong vùng mình vừa đánh dấu.";
 }
 
 function handleRegionAction(event) {
@@ -871,13 +1166,29 @@ function handleRegionAction(event) {
   const action = button.dataset.regionAction;
   if (action === "later") return hideRegionPopover();
   if (action === "tutor") {
+    const annotation = getAnnotations(active.page).find((item) => item.id === active.id);
+    if (!annotation) return hideRegionPopover();
+    let region = active.region;
+    try {
+      region ||= boundsFromPoints(annotation.points, 0.025);
+    } catch {
+      hideRegionPopover();
+      return showToast("Vùng khoanh quá nhỏ. Hãy khoanh rộng hơn một chút.", "error");
+    }
+    state.visualSelection = {
+      kind: "annotation",
+      annotationId: active.id,
+      pageNumber: active.page,
+      region,
+      contentKind: active.contentKind || "mixed",
+    };
+    state.selectionText = "";
     state.currentPage = active.page;
+    state.activeChatSession = "tutor";
     state.tutorOpen = true;
-    updateCurrentPageClass(); updateChrome(); updateWorkspace();
-    elements.chatInput.value = `Mình cần trợ giúp với vùng đã khoanh ở trang ${active.page}. Hãy giải thích phần nội dung liên quan trong trang này.`;
-    autoGrowComposer();
+    updateVisualSelection(); updateCurrentPageClass(); updateChrome(); updateWorkspace();
     hideRegionPopover();
-    setTimeout(() => elements.chatInput.focus(), 120);
+    void submitQuestion(circledQuestion(state.visualSelection.contentKind), { visualSelection: { ...state.visualSelection } });
     return;
   }
   const annotation = getAnnotations(active.page).find((item) => item.id === active.id);
@@ -898,7 +1209,7 @@ function wireVisualInteractions(shell, pageNumber) {
 function selectVisualRegion(regionName, pageNumber) {
   const region = VISUAL_REGIONS[regionName];
   if (!region) return;
-  state.visualSelection = { regionName, pageNumber };
+  state.visualSelection = { kind: "preset", regionName, pageNumber, contentKind: "visual" };
   state.selectionText = "";
   state.currentPage = pageNumber;
   state.tutorOpen = true;
@@ -931,6 +1242,7 @@ function updateVisualSelection() {
 }
 
 async function cropSelectedRegion(selection) {
+  if (selection.kind === "annotation") return captureCircledRegion(selection);
   const shell = getPageShell(selection.pageNumber);
   const image = shell?.querySelector(".visual-context-stage img");
   const region = VISUAL_REGIONS[selection.regionName];
@@ -942,7 +1254,79 @@ async function cropSelectedRegion(selection) {
   canvas.width = Math.max(1, Math.round(bounds.sw * scale));
   canvas.height = Math.max(1, Math.round(bounds.sh * scale));
   canvas.getContext("2d").drawImage(image, bounds.sx, bounds.sy, bounds.sw, bounds.sh, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL("image/png").split(",")[1];
+  return { imageData: canvas.toDataURL("image/png").split(",")[1], selectedText: "" };
+}
+
+async function captureCircledRegion(selection) {
+  const paper = getPageShell(selection.pageNumber)?.querySelector(".page-paper");
+  if (!paper || !selection.region) throw new Error("Không tìm thấy vùng hình đã khoanh.");
+
+  const screenshot = await html2canvas(paper, {
+    backgroundColor: getComputedStyle(paper).backgroundColor || "#ffffff",
+    scale: Math.min(window.devicePixelRatio || 1, 2),
+    useCORS: true,
+    logging: false,
+    ignoreElements: (element) => (
+      element.classList?.contains("annotation-canvas")
+      || element.classList?.contains("annotation-markers")
+      || element.classList?.contains("page-note-markers")
+      || element.matches?.("[data-visual-region], .visual-whole-button")
+    ),
+  });
+  const bounds = toPixelBounds(selection.region, screenshot.width, screenshot.height);
+  const scale = Math.min(1, 2048 / Math.max(bounds.sw, bounds.sh));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bounds.sw * scale));
+  canvas.height = Math.max(1, Math.round(bounds.sh * scale));
+  canvas.getContext("2d").drawImage(
+    screenshot,
+    bounds.sx,
+    bounds.sy,
+    bounds.sw,
+    bounds.sh,
+    0,
+    0,
+    canvas.width,
+    canvas.height,
+  );
+  return {
+    imageData: canvas.toDataURL("image/png").split(",")[1],
+    selectedText: collectTextInsideRegion(paper, selection.region),
+  };
+}
+
+function collectTextInsideRegion(paper, region) {
+  const paperBounds = paper.getBoundingClientRect();
+  const target = {
+    left: paperBounds.left + region.x * paperBounds.width,
+    top: paperBounds.top + region.y * paperBounds.height,
+    right: paperBounds.left + (region.x + region.width) * paperBounds.width,
+    bottom: paperBounds.top + (region.y + region.height) * paperBounds.height,
+  };
+  const walker = document.createTreeWalker(paper, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const text = node.textContent?.replace(/\s+/g, " ").trim();
+      if (!text || node.parentElement?.closest(".annotation-markers,.page-note-markers,[data-visual-region],.visual-whole-button")) {
+        return NodeFilter.FILTER_REJECT;
+      }
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      const rect = range.getBoundingClientRect();
+      const intersects = rect.width > 0
+        && rect.height > 0
+        && rect.left < target.right
+        && rect.right > target.left
+        && rect.top < target.bottom
+        && rect.bottom > target.top;
+      return intersects ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+    },
+  });
+  const parts = [];
+  while (walker.nextNode()) {
+    const text = walker.currentNode.textContent.replace(/\s+/g, " ").trim();
+    if (text && !parts.includes(text)) parts.push(text);
+  }
+  return parts.join(" · ").slice(0, 4000);
 }
 
 function showSelectionMenu(x, y) {
@@ -952,14 +1336,21 @@ function showSelectionMenu(x, y) {
   elements.selectionMenu.style.top = `${Math.max(8, Math.min(window.innerHeight - bounds.height - 8, y))}px`;
 }
 
-function hideSelectionMenu() { elements.selectionMenu.classList.add("hidden"); }
+function hideSelectionMenu() {
+  elements.selectionMenu.classList.add("hidden");
+  discardPendingTextHighlight();
+}
 
 function handleSelectionAction(event) {
   const button = event.target.closest("[data-action]");
   if (!button) return;
   const action = button.dataset.action;
+  const committed = commitPendingTextHighlight();
   hideSelectionMenu();
   if (action === "ask") {
+    state.composerSelection = state.selectionText
+      ? { text: state.selectionText, page: state.selectionPage }
+      : null;
     state.tutorOpen = true; updateWorkspace();
     elements.chatInput.value = state.selectionText ? `Giải thích đoạn này: “${state.selectionText}”` : `Giải thích nội dung chính của trang ${state.selectionPage}.`;
     autoGrowComposer(); elements.chatInput.focus();
@@ -967,6 +1358,8 @@ function handleSelectionAction(event) {
     const text = state.selectionText ? `Mình chưa hiểu: ${state.selectionText}` : "Mình chưa hiểu nội dung trang này.";
     addNote(state.selectionPage, text, "confused");
     showToast("Đã đánh dấu nội dung gây bối rối.", "success");
+  } else if (committed) {
+    showHighlightPopover(committed.page, committed.annotation.id, committed.anchorX, committed.anchorY, false);
   } else openNoteModal(state.selectionPage, state.selectionText);
 }
 
@@ -1073,6 +1466,153 @@ function setCurrentPage(pageNumber) {
   updateCurrentPageClass(); updateChrome();
 }
 
+function maybeShowLessonSummaryPrompt() {
+  const nearBottom = elements.readerScroll.scrollTop + elements.readerScroll.clientHeight
+    >= elements.readerScroll.scrollHeight - 90;
+  const key = state.document.id;
+  const shouldShow = nearBottom
+    && !state.summaryPromptDismissed.has(key)
+    && !getSummarySession(false)
+    && !state.summaryLoading;
+  elements.lessonSummaryPrompt.classList.toggle("hidden", !shouldShow);
+}
+
+function handleLessonSummaryAction(event) {
+  const button = event.target.closest("[data-summary-action]");
+  if (!button) return;
+  elements.lessonSummaryPrompt.classList.add("hidden");
+  if (button.dataset.summaryAction === "dismiss") {
+    state.summaryPromptDismissed.add(state.document.id);
+    return;
+  }
+  void createLessonSummarySession();
+}
+
+async function createLessonSummarySession() {
+  if (state.summaryLoading) return;
+  if (state.questionCount >= DAILY_QUESTION_LIMIT) return showToast(`Bạn đã dùng hết quota demo ${DAILY_QUESTION_LIMIT} câu hôm nay.`, "error");
+  state.summaryLoading = true;
+  state.summaryPromptDismissed.add(state.document.id);
+  state.activeChatSession = "summary";
+  state.visualSelection = null;
+  state.tutorOpen = true;
+  const session = getSummarySession(true);
+  session.messages = [{ role: "user", answer: "Tóm tắt bài học và đánh dấu các điểm mình cần ghi nhớ." }];
+  updateWorkspace();
+  updateChrome();
+  renderChat(true);
+  const typingId = showTyping();
+
+  try {
+    const pages = state.pageTexts.map((text, index) => ({ page: index + 1, text: (text || "").slice(0, 5_000) })).filter((item) => item.text);
+    const response = await fetch("/api/summary", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documentName: state.document.name, pages }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Chưa thể tóm tắt bài học.");
+    session.keyPoints = result.key_points || [];
+    const points = session.keyPoints.map((item) => `• ${item.explanation} [Trang ${item.page}]`).join("\n");
+    session.messages.push({
+      role: "assistant",
+      answer: `${result.summary}${points ? `\n\nCác điểm cần ghi nhớ:\n${points}` : ""}`,
+      citations: session.keyPoints.map((item) => ({ page: item.page, excerpt: item.quote })),
+      confidence: result.mode === "live" ? 86 : 68,
+      mode: "summary",
+    });
+    await applySuggestedHighlights(session.keyPoints);
+    state.questionCount += 1;
+    persistState();
+  } catch (error) {
+    session.messages.push({ role: "assistant", answer: `Mình chưa thể tạo bản tóm tắt: ${error.message}`, citations: [], confidence: 0, mode: "error" });
+  } finally {
+    document.querySelector(`[data-typing-id="${typingId}"]`)?.remove();
+    state.summaryLoading = false;
+    updateChrome();
+    renderChat(true);
+  }
+}
+
+async function applySuggestedHighlights(keyPoints) {
+  Object.values(state.annotations[state.document.id] || {}).forEach((annotations) => {
+    for (let index = annotations.length - 1; index >= 0; index -= 1) {
+      if (annotations[index].kind === "ai-highlight") annotations.splice(index, 1);
+    }
+  });
+
+  for (const point of keyPoints.slice(0, 8)) {
+    const pageNumber = Number(point.page);
+    if (state.document.type === "pdf") await renderPdfPage(pageNumber);
+    const paper = getPageShell(pageNumber)?.querySelector(".page-paper");
+    if (!paper) continue;
+    const rects = findTextRectsForQuote(paper, point.quote);
+    if (!rects.length) continue;
+    getAnnotations(pageNumber).push({
+      id: createAnnotationId(),
+      kind: "ai-highlight",
+      rects,
+      text: point.quote,
+      source: "lesson-summary",
+      color: "#14a697",
+      createdAt: Date.now(),
+    });
+    drawAnnotations(pageNumber);
+  }
+  persistState();
+}
+
+function findTextRectsForQuote(paper, quote) {
+  const root = paper.querySelector(".pdf-text-layer") || paper.querySelector(".demo-slide");
+  if (!root || !quote) return [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const text = node.textContent?.replace(/\s+/g, " ").trim();
+      return text && !node.parentElement?.closest("button") ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+    },
+  });
+  const segments = [];
+  let combined = "";
+  while (walker.nextNode()) {
+    const text = walker.currentNode.textContent.replace(/\s+/g, " ").trim();
+    const start = combined.length;
+    combined += `${combined ? " " : ""}${text}`;
+    segments.push({ node: walker.currentNode, start: start + (start ? 1 : 0), end: combined.length });
+  }
+  const needle = quote.replace(/\s+/g, " ").trim();
+  let matchStart = combined.toLocaleLowerCase("vi").indexOf(needle.toLocaleLowerCase("vi"));
+  let matchEnd = matchStart + needle.length;
+  if (matchStart < 0) {
+    const terms = normalizeWords(needle).filter((word) => word.length > 3);
+    const best = segments.map((segment) => ({
+      segment,
+      score: terms.filter((term) => normalizeWords(segment.node.textContent).includes(term)).length,
+    })).sort((a, b) => b.score - a.score)[0];
+    if (!best?.score) return [];
+    matchStart = best.segment.start;
+    matchEnd = best.segment.end;
+  }
+  const paperBounds = paper.getBoundingClientRect();
+  const rects = [];
+  segments.filter((segment) => segment.end > matchStart && segment.start < matchEnd).forEach((segment) => {
+    const range = document.createRange();
+    range.selectNodeContents(segment.node);
+    [...range.getClientRects()].forEach((rect) => {
+      const left = Math.max(rect.left, paperBounds.left);
+      const top = Math.max(rect.top, paperBounds.top);
+      const right = Math.min(rect.right, paperBounds.right);
+      const bottom = Math.min(rect.bottom, paperBounds.bottom);
+      if (right > left && bottom > top) rects.push({
+        x: (left - paperBounds.left) / paperBounds.width,
+        y: (top - paperBounds.top) / paperBounds.height,
+        width: (right - left) / paperBounds.width,
+        height: (bottom - top) / paperBounds.height,
+      });
+    });
+  });
+  return mergeHighlightRects(rects);
+}
+
 function updateCurrentPageClass() {
   elements.pagesHost.querySelectorAll(".page-shell").forEach((shell) => shell.classList.toggle("current", Number(shell.dataset.page) === state.currentPage));
 }
@@ -1094,10 +1634,21 @@ function updateChrome() {
   const count = getNotes(state.currentPage).length + highlightNoteCount;
   elements.pageNotePill.textContent = `Trang ${state.currentPage} · ${count} note`;
   elements.composerPage.textContent = state.visualSelection
-    ? `${VISUAL_REGIONS[state.visualSelection.regionName].label} · slide ${state.visualSelection.pageNumber}`
+    ? state.visualSelection.kind === "annotation"
+      ? `vùng khoanh · slide ${state.visualSelection.pageNumber}`
+      : `${VISUAL_REGIONS[state.visualSelection.regionName]?.label || "vùng hình"} · slide ${state.visualSelection.pageNumber}`
     : `trang ${state.currentPage}`;
-  elements.quotaLabel.textContent = `${state.questionCount} / 15 câu`;
-  elements.quotaProgress.style.width = `${Math.min(100, state.questionCount / 15 * 100)}%`;
+  elements.quotaLabel.textContent = `${state.questionCount} / ${DAILY_QUESTION_LIMIT} câu`;
+  elements.quotaProgress.style.width = `${Math.min(100, state.questionCount / DAILY_QUESTION_LIMIT * 100)}%`;
+  renderChatSessionTabs();
+}
+
+function renderChatSessionTabs() {
+  const summaryExists = Boolean(getSummarySession(false));
+  elements.chatSessionTabs.querySelectorAll("[data-chat-session]").forEach((button) => {
+    if (button.dataset.chatSession === "summary") button.classList.toggle("hidden", !summaryExists);
+    button.classList.toggle("active", button.dataset.chatSession === state.activeChatSession);
+  });
 }
 
 function toggleTheme() { state.theme = state.theme === "light" ? "dark" : "light"; applyTheme(); persistState(); }
@@ -1108,11 +1659,37 @@ function applyTheme() {
 }
 
 function addWelcomeMessage() {
+  state.activeChatSession = "tutor";
   state.chat = [{ role: "assistant", answer: "Xin chào! Mình có thể giải thích, tóm tắt và trả lời dựa trên tài liệu bạn đang đọc.\n\nHãy chọn một đoạn trên slide hoặc đặt câu hỏi về trang hiện tại.", citations: [], confidence: 100, mode: "system" }];
   renderChat();
 }
 
-function resetChat() { addWelcomeMessage(); showToast("Đã bắt đầu cuộc trò chuyện mới.", "success"); }
+function resetChat() {
+  state.composerSelection = null;
+  addWelcomeMessage();
+  showToast("Đã bắt đầu cuộc trò chuyện mới.", "success");
+}
+
+function getSummarySession(create = false) {
+  const key = state.document.id;
+  if (create && !state.summaryChats[key]) {
+    state.summaryChats[key] = { messages: [], keyPoints: [], createdAt: new Date().toISOString() };
+  }
+  return state.summaryChats[key] || null;
+}
+
+function getActiveChatMessages() {
+  if (state.activeChatSession === "summary") return getSummarySession(true).messages;
+  return state.chat;
+}
+
+function handleChatSessionChange(event) {
+  const button = event.target.closest("[data-chat-session]");
+  if (!button || button.classList.contains("hidden")) return;
+  state.activeChatSession = button.dataset.chatSession;
+  renderChat(true);
+  updateChrome();
+}
 
 async function checkApiHealth() {
   try {
@@ -1131,38 +1708,59 @@ async function checkApiHealth() {
 async function sendQuestion(event) {
   event.preventDefault();
   const question = elements.chatInput.value.trim();
-  const visualSelection = state.visualSelection ? { ...state.visualSelection } : null;
+  await submitQuestion(question);
+}
+
+async function submitQuestion(question, options = {}) {
+  const visualSelection = Object.hasOwn(options, "visualSelection")
+    ? options.visualSelection
+    : (state.visualSelection ? { ...state.visualSelection } : null);
+  const selectedText = Object.hasOwn(options, "selectedText")
+    ? options.selectedText
+    : (state.composerSelection?.text || "");
+  const selectedPage = Object.hasOwn(options, "selectedPage")
+    ? options.selectedPage
+    : (state.composerSelection?.page || state.currentPage);
   if (!question || state.sending) return;
-  if (state.questionCount >= 15) return showToast("Bạn đã dùng hết quota demo 15 câu hôm nay.", "error");
+  if (state.questionCount >= DAILY_QUESTION_LIMIT) return showToast(`Bạn đã dùng hết quota demo ${DAILY_QUESTION_LIMIT} câu hôm nay.`, "error");
   state.tutorOpen = true; state.sending = true; updateWorkspace();
-  state.chat.push({ role: "user", answer: question });
+  const messages = getActiveChatMessages();
+  messages.push({ role: "user", answer: question });
   elements.chatInput.value = ""; autoGrowComposer(); renderChat(true);
   elements.sendButton.disabled = true;
   const typingId = showTyping();
 
   try {
-    if (visualSelection) await sendVisualQuestion(question, visualSelection);
-    else await sendTextQuestion(question);
+    if (visualSelection) await sendVisualQuestion(question, visualSelection, messages);
+    else await sendTextQuestion(question, messages, { selectedText, selectedPage });
     state.questionCount += 1;
     persistState(); updateChrome();
   } catch (error) {
-    state.chat.push({ role: "assistant", answer: `Mình chưa thể trả lời lúc này: ${error.message}`, citations: [], confidence: 0, mode: "error" });
+    messages.push({ role: "assistant", answer: `Mình chưa thể trả lời lúc này: ${error.message}`, citations: [], confidence: 0, mode: "error" });
   } finally {
     document.querySelector(`[data-typing-id="${typingId}"]`)?.remove();
+    state.composerSelection = null;
     state.sending = false; elements.sendButton.disabled = false; renderChat(true); elements.chatInput.focus();
   }
 }
 
-async function sendTextQuestion(question) {
+async function sendTextQuestion(question, messages = getActiveChatMessages(), selection = {}) {
   const contextPages = selectContextPages(question);
   const response = await fetch("/api/tutor", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question, documentName: state.document.name, currentPage: state.currentPage, contextPages }),
+    body: JSON.stringify({
+      question,
+      documentName: state.document.name,
+      currentPage: state.currentPage,
+      contextPages,
+      selectedText: selection.selectedText || "",
+      selectedPage: selection.selectedPage || state.currentPage,
+    }),
   });
   const data = await response.json();
   if (!response.ok && !data.fallback) throw new Error(data.error || "Tutor chưa thể trả lời.");
-  state.chat.push({
+  messages.push({
     role: "assistant",
     answer: data.answer || data.fallback,
     citations: data.citations || contextPages.map((item) => ({ page: item.page, excerpt: item.text.slice(0, 150) })),
@@ -1171,26 +1769,34 @@ async function sendTextQuestion(question) {
   });
 }
 
-async function sendVisualQuestion(question, selection) {
+async function sendVisualQuestion(question, selection, messages = getActiveChatMessages()) {
+  const capture = await cropSelectedRegion(selection);
   const response = await fetch("/api/analyze", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      imageData: await cropSelectedRegion(selection),
+      imageData: capture.imageData,
       mediaType: "image/png",
       question,
       slideNumber: selection.pageNumber,
       nearbyText: (state.pageTexts[selection.pageNumber - 1] || "").slice(0, 4000),
+      selectedText: capture.selectedText,
+      contentKind: selection.contentKind || (selection.kind === "preset" ? "visual" : "mixed"),
+      selectionCoverage: selection.kind === "annotation"
+        ? Math.min(1, selection.region.width * selection.region.height)
+        : Math.min(1, (VISUAL_REGIONS[selection.regionName]?.width || 1) * (VISUAL_REGIONS[selection.regionName]?.height || 1)),
     }),
   });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || "Visual Tutor chưa thể trả lời.");
-  state.chat.push({
+  messages.push({
     role: "assistant",
     answer: result.route === "VISUAL_GROUNDED" ? result.answer : result.reason,
     mode: "visual",
     visualRoute: result.route,
     visualPage: selection.pageNumber,
+    visualSelectionKind: selection.kind,
+    visualContentKind: selection.contentKind || "mixed",
     recoveryAction: result.recovery_action,
   });
 }
@@ -1212,34 +1818,49 @@ function selectContextPages(question) {
 }
 
 function renderChat(scrollToBottom = false) {
-  elements.chatMessages.innerHTML = state.chat.map((message) => {
+  const messages = getActiveChatMessages();
+  renderChatSessionTabs();
+  elements.chatMessages.innerHTML = messages.map((message) => {
     if (message.role === "user") return `<article class="message user"><div class="message-bubble">${escapeHtml(message.answer)}</div></article>`;
     const sources = message.citations?.length ? `<div class="source-block"><div class="source-title">${icon("book-open")} ${message.citations.length} nguồn tham khảo</div>${message.citations.map((source) => `<button class="source-card" data-source-page="${source.page}"><strong>TRANG ${source.page}</strong><span>${escapeHtml(source.excerpt || "Nội dung liên quan trong tài liệu")}</span></button>`).join("")}</div>` : "";
-    const confidence = message.mode === "system" || message.mode === "visual" ? "" : `<div class="confidence-row"><div class="confidence-bar"><span style="width:${message.confidence || 0}%"></span></div><span>${message.confidence || 0}% · ${message.confidence >= 80 ? "Tin cậy cao" : message.confidence >= 60 ? "Nên kiểm tra nguồn" : "Thiếu căn cứ"}</span></div>`;
-    const mode = message.mode === "demo" ? '<span class="message-mode">Phản hồi demo</span>' : message.mode === "live" ? '<span class="message-mode" style="background:#dcf8ef;color:#087456">AI LIVE</span>' : message.mode === "visual" ? '<span class="message-mode visual-mode">VISUAL AI</span>' : "";
+    const confidence = message.mode === "system" || message.mode === "visual" || message.mode === "summary" ? "" : `<div class="confidence-row"><div class="confidence-bar"><span style="width:${message.confidence || 0}%"></span></div><span>${message.confidence || 0}% · ${message.confidence >= 80 ? "Tin cậy cao" : message.confidence >= 60 ? "Nên kiểm tra nguồn" : "Thiếu căn cứ"}</span></div>`;
+    const regionMode = message.visualContentKind === "text" ? "AI VĂN BẢN" : message.visualContentKind === "visual" ? "VISUAL AI" : "AI VÙNG CHỌN";
+    const mode = message.mode === "demo" ? '<span class="message-mode">Phản hồi demo</span>' : message.mode === "live" ? '<span class="message-mode" style="background:#dcf8ef;color:#087456">AI LIVE</span>' : message.mode === "visual" ? `<span class="message-mode visual-mode">${regionMode}</span>` : message.mode === "summary" ? '<span class="message-mode" style="background:#e1f7f2;color:#08796c">TÓM TẮT RIÊNG</span>' : "";
     const visual = message.mode === "visual" ? renderVisualEvidence(message) : "";
-    return `<article class="message assistant"><div class="assistant-label">${icon("bot")} VLEARN TUTOR</div><div class="message-bubble">${formatAnswer(message.answer)}</div>${mode}${visual}${sources}${confidence}</article>`;
+    const legend = message.mode === "summary" ? '<div class="suggested-highlight-legend">Màu xanh ngọc trên slide là điểm AI gợi ý cần ghi nhớ.</div>' : "";
+    return `<article class="message assistant"><div class="assistant-label">${icon("bot")} ${message.mode === "summary" ? "TÓM TẮT BÀI HỌC" : "VLEARN TUTOR"}</div><div class="message-bubble">${formatAnswer(message.answer)}</div>${mode}${legend}${visual}${sources}${confidence}</article>`;
   }).join("");
   elements.chatMessages.querySelectorAll("[data-source-page]").forEach((button) => button.addEventListener("click", () => scrollToPage(Number(button.dataset.sourcePage))));
-  elements.chatMessages.querySelectorAll("[data-visual-recovery]").forEach((button) => button.addEventListener("click", () => selectVisualRegion("whole", Number(button.dataset.visualRecovery))));
+  elements.chatMessages.querySelectorAll("[data-visual-recovery]").forEach((button) => button.addEventListener("click", () => {
+    const pageNumber = Number(button.dataset.visualRecovery);
+    if (button.dataset.selectionKind === "annotation") {
+      scrollToPage(pageNumber);
+      setMode("circle");
+    } else selectVisualRegion("whole", pageNumber);
+  }));
   if (scrollToBottom) requestAnimationFrame(() => { elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight; });
 }
 
 function renderVisualEvidence(message) {
-  if (message.visualRoute === "VISUAL_GROUNDED") return `<div class="visual-provenance">Dựa trên vùng hình ở slide ${message.visualPage}</div>`;
+  const sourceLabel = message.visualContentKind === "text"
+    ? "đoạn chữ được khoanh"
+    : message.visualContentKind === "visual"
+      ? "hình hoặc sơ đồ được khoanh"
+      : "vùng nội dung được khoanh";
+  if (message.visualRoute === "VISUAL_GROUNDED") return `<div class="visual-provenance">Dựa trên ${sourceLabel} ở slide ${message.visualPage}</div>`;
   const action = message.recoveryAction ? `<p>${escapeHtml(message.recoveryAction)}</p>` : "";
   const widerButton = message.visualRoute === "NEED_WIDER_REGION"
-    ? `<button type="button" class="visual-recovery" data-visual-recovery="${message.visualPage}">Chọn toàn bộ sơ đồ</button>`
+    ? `<button type="button" class="visual-recovery" data-visual-recovery="${message.visualPage}" data-selection-kind="${message.visualSelectionKind || "preset"}">${message.visualSelectionKind === "annotation" ? "Khoanh vùng rộng hơn" : "Chọn toàn bộ sơ đồ"}</button>`
     : "";
-  return `<div class="visual-recovery-card"><strong>${visualRouteLabel(message.visualRoute)}</strong>${action}${widerButton}</div>`;
+  return `<div class="visual-recovery-card"><strong>${visualRouteLabel(message.visualRoute, message.visualContentKind)}</strong>${action}${widerButton}</div>`;
 }
 
-function visualRouteLabel(route) {
+function visualRouteLabel(route, contentKind = "mixed") {
   return {
-    NEED_WIDER_REGION: "Cần vùng hình rộng hơn",
-    NEED_BETTER_IMAGE: "Cần hình rõ hơn",
+    NEED_WIDER_REGION: "Cần vùng nội dung rộng hơn",
+    NEED_BETTER_IMAGE: contentKind === "visual" ? "Cần hình rõ hơn" : "Cần nội dung rõ hơn",
     INSUFFICIENT: "Chưa đủ căn cứ để trả lời",
-  }[route] || "Chưa thể phân tích vùng hình";
+  }[route] || "Chưa thể phân tích vùng đã khoanh";
 }
 
 function showTyping() {
@@ -1269,7 +1890,7 @@ function readStoredState() {
 
 function persistState() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ zoom: state.zoom, theme: state.theme, drawColor: state.drawColor, drawWidth: state.drawWidth, annotations: state.annotations, notes: state.notes, questionCount: state.questionCount, questionDate: todayKey }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ zoom: state.zoom, theme: state.theme, drawColor: state.drawColor, drawWidth: state.drawWidth, annotations: state.annotations, notes: state.notes, summaryChats: state.summaryChats, questionCount: state.questionCount, questionDate: todayKey }));
   } catch { showToast("Không thể lưu trạng thái cục bộ của trình duyệt.", "error"); }
 }
 

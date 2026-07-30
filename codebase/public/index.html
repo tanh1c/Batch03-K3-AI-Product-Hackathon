@@ -113,8 +113,12 @@
             </div>
           </div>
           <div class="quota-block">
-            <div><span>Quota Tutor trong ngày</span><strong id="quotaLabel">0 / 15 câu</strong></div>
+            <div><span>Quota Tutor trong ngày</span><strong id="quotaLabel">0 / 50 câu</strong></div>
             <div class="quota-row"><div class="progress"><span id="quotaProgress"></span></div><button class="byok-chip" id="aiStatusButton"><span data-icon="key"></span><span id="aiModeLabel">DEMO</span></button></div>
+          </div>
+          <div class="chat-session-tabs" id="chatSessionTabs">
+            <button class="active" data-chat-session="tutor"><span data-icon="bot"></span>Tutor</button>
+            <button class="hidden" data-chat-session="summary"><span data-icon="note"></span>Tóm tắt bài học</button>
           </div>
           <div class="chat-scroll" id="chatMessages"></div>
           <form class="chat-composer" id="chatForm">
@@ -144,12 +148,22 @@
       </section>
 
       <section class="annotation-popover region-popover hidden" id="regionPopover" role="dialog" aria-label="Hành động với vùng khoanh">
-        <header class="region-heading"><span class="region-symbol" data-icon="circle"></span><div><strong id="regionTitle">Vùng khoanh Trang 1</strong><p>Hệ thống xem vùng này là điểm sinh viên đang gặp vấn đề.</p></div></header>
+        <header class="region-heading"><span class="region-symbol" data-icon="circle"></span><div><strong id="regionTitle">Vùng khoanh Trang 1</strong><p id="regionDescription">Bạn muốn Tutor giải thích nội dung trong vùng này?</p></div></header>
         <div class="region-actions">
           <button class="region-tutor-button" data-region-action="tutor"><span data-icon="bot"></span>Hỏi VLearn Tutor</button>
           <button class="region-report-button" data-region-action="report"><span data-icon="alert"></span>Báo GV</button>
         </div>
         <button class="region-later-button" data-region-action="later">Để sau</button>
+      </section>
+
+      <section class="annotation-popover highlight-ask-popover hidden" id="highlightAskPopover" role="dialog" aria-label="Hỏi Tutor về đoạn highlight">
+        <div class="highlight-ask-heading"><span data-icon="bot"></span><div><strong>Bạn cần hỏi về dòng bôi đen này?</strong><p>Tutor sẽ giải thích dựa trên đoạn vừa chọn.</p></div></div>
+        <div class="highlight-ask-actions"><button data-highlight-ask="yes">Có, hỏi Tutor</button><button data-highlight-ask="no">Không</button></div>
+      </section>
+
+      <section class="lesson-summary-prompt hidden" id="lessonSummaryPrompt" role="dialog" aria-label="Gợi ý tóm tắt bài học">
+        <div class="summary-prompt-heading"><span data-icon="check"></span><div><strong>Bạn đã xem đến cuối bài học</strong><p>Bạn có muốn mình tóm tắt lại bài học và bôi đen các điểm cần ghi nhớ không?</p></div></div>
+        <div class="summary-prompt-actions"><button data-summary-action="accept">Có, mình cần</button><button data-summary-action="dismiss">Không, cảm ơn</button></div>
       </section>
 
       <div class="modal-backdrop hidden" id="uploadModal">

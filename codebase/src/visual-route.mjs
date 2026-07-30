@@ -5,6 +5,9 @@ function validateInput(body) {
   if (typeof body.question !== "string" || !body.question.trim() || body.question.length > 1000) return "Câu hỏi phải có từ 1 đến 1000 ký tự.";
   if (!Number.isInteger(body.slideNumber) || body.slideNumber < 1 || body.slideNumber > 9999) return "Số trang không hợp lệ.";
   if (typeof body.nearbyText !== "string" || body.nearbyText.length > 4000) return "Ngữ cảnh văn bản không hợp lệ.";
+  if (body.selectedText !== undefined && (typeof body.selectedText !== "string" || body.selectedText.length > 4000)) return "Chữ trong vùng khoanh không hợp lệ.";
+  if (body.contentKind !== undefined && !["text", "visual", "mixed"].includes(body.contentKind)) return "Loại nội dung vùng khoanh không hợp lệ.";
+  if (body.selectionCoverage !== undefined && (!Number.isFinite(body.selectionCoverage) || body.selectionCoverage <= 0 || body.selectionCoverage > 1)) return "Tỷ lệ vùng khoanh không hợp lệ.";
   return "";
 }
 
@@ -27,6 +30,9 @@ export function registerVisualRoute(app, {
         question: request.body.question.trim(),
         slideNumber: request.body.slideNumber,
         nearbyText: request.body.nearbyText,
+        selectedText: request.body.selectedText || "",
+        contentKind: request.body.contentKind || "mixed",
+        selectionCoverage: request.body.selectionCoverage || 0,
       };
       const result = await analyze(input, { provider });
       await recordTrace({ file: traceFile, provider: provider.name, model: provider.model, input, result });

@@ -8,20 +8,25 @@ Prototype trình đọc PDF và trợ giảng AI theo ngữ cảnh, tái hiện 
 - Tải PDF mới bằng nút chọn file hoặc kéo thả, giới hạn 50 MB.
 - Render PDF theo kiểu lazy-loading để tài liệu dài không phải vẽ toàn bộ cùng lúc.
 - Điều hướng trang, phóng to/thu nhỏ từ 60% đến 150%.
-- Bút vẽ và highlight vùng; dữ liệu được chuẩn hóa theo kích thước trang nên vẫn đúng vị trí khi zoom.
+- Bút vẽ, khoanh vùng và highlight; dữ liệu được chuẩn hóa theo kích thước trang nên vẫn đúng vị trí khi zoom.
+- Highlight của người học dùng vàng nhạt; các rectangle PDF cùng dòng được gộp để chữ không bị sọc hoặc khó đọc.
+- Sau khi highlight, một box riêng hỏi người học có cần Tutor giải thích đoạn vừa chọn hay không; chọn “Không” vẫn giữ nguyên box ghi chú.
 - Ghi chú riêng theo trang, đánh dấu nội dung gây bối rối, hoàn tác và xóa annotation.
 - Menu ngữ cảnh khi bôi đen chữ trong slide mẫu hoặc nhấp chuột phải vào trang.
 - Tutor tìm các trang liên quan, trả lời kèm nguồn và cho phép nhấn nguồn để quay lại trang.
 - Chế độ sáng/tối và lưu ghi chú, annotation, theme bằng `localStorage`.
 - Hỗ trợ OpenAI, OpenRouter, Google Gemini trực tiếp và local 9router; Tutor demo hoạt động khi provider đã chọn chưa được cấu hình.
-- Ở slide mẫu có sơ đồ, chọn nhánh hoặc toàn bộ vùng hình để gửi câu hỏi tới Visual Tutor; câu trả lời hiển thị provenance theo slide và hướng dẫn chọn vùng rộng hơn khi chưa đủ ngữ cảnh.
+- Sau khi người học khoanh một vùng, giao diện hỏi “Bạn có muốn mình giải thích hình đã đánh dấu?”; nếu đồng ý, ứng dụng chụp đúng vùng khoanh rồi gửi tới Visual Tutor.
+- Vùng khoanh được raster hóa từ toàn bộ DOM, nên sơ đồ dựng bằng HTML/CSS, ảnh và PDF canvas đều đi vào PNG. Chữ HTML/PDF text giao với vùng khoanh cũng được gửi riêng làm ngữ cảnh bổ sung.
+- Ở slide mẫu có sơ đồ, người học vẫn có thể chọn nhanh một nhánh hoặc toàn bộ hình; câu trả lời hiển thị provenance theo slide và hướng dẫn chọn vùng rộng hơn khi chưa đủ ngữ cảnh.
+- Khi người học xem đến cuối tài liệu, ứng dụng đề nghị tạo bản tóm tắt trong phiên chat riêng và đánh dấu các điểm AI gợi ý bằng màu xanh ngọc, tách biệt với highlight vàng của người học.
 - Visual Tutor gửi ảnh crop PNG tối thiểu tới server; trace chỉ lưu metadata đã băm, không lưu câu hỏi gốc hoặc ảnh.
 
 ### Visual Tutor
 
 Visual Tutor có hợp đồng bốn route: `VISUAL_GROUNDED`, `NEED_WIDER_REGION`, `NEED_BETTER_IMAGE`, `INSUFFICIENT`. Chỉ route grounded có `answer`; các route phục hồi phải có `reason` và `recovery_action` cụ thể. Mô hình được cấu hình cho Visual Tutor phải hỗ trợ ảnh và structured JSON output.
 
-Luồng MVP hiện hỗ trợ chọn vùng bằng nút trên slide demo. Tự động quét toàn bộ slide để phát hiện vùng ảnh chưa nằm trong phạm vi MVP.
+Luồng MVP hỗ trợ cả nút vùng cấu hình sẵn trên slide demo và vùng khoanh tự do trên mọi slide/PDF. Hệ thống dùng hình học nét bút để lấy khung crop; vision model không phải tự phát hiện nét khoanh. Tự động quét toàn bộ slide để phát hiện vùng ảnh vẫn chưa nằm trong phạm vi MVP.
 
 Credentials chỉ được đọc ở server và không xuất hiện trong trace hoặc browser. VLearn không tự fallback sang provider khác; nếu dùng combo model, fallback bên trong 9router thuộc quyền kiểm soát của gateway.
 
@@ -94,7 +99,7 @@ Khởi động lại bằng `npm start`. Credentials chỉ tồn tại ở serve
 - Annotation được lưu trong trình duyệt hiện tại, chưa đồng bộ tài khoản hoặc cơ sở dữ liệu.
 - File PDF không được giữ lại sau khi refresh; người dùng cần chọn lại file. Ghi chú của file vẫn còn nếu tải lại đúng file đó.
 - Chưa có đăng nhập, phân quyền giáo viên hoặc quản trị học liệu.
-- Giới hạn 15 câu là quota demo lưu cục bộ, không phải hệ thống tính phí.
+- Giới hạn 50 câu là quota demo lưu cục bộ, không phải hệ thống tính phí.
 
 ## Kiểm tra
 

@@ -15,6 +15,9 @@ const input = {
   question: "Giải thích hình này",
   slideNumber: 18,
   nearbyText: "Machine Learning và Deep Learning",
+  selectedText: "Raw data · Hand-crafted features · ML model",
+  contentKind: "mixed",
+  selectionCoverage: 0.9,
 };
 
 const grounded = {
@@ -29,9 +32,13 @@ test("builds an image-first structured-output request", () => {
   assert.equal(body.model, "gpt-5.6-terra");
   assert.equal(body.input[0].content[0].type, "input_image");
   assert.equal(body.input[0].content[0].image_url, "data:image/png;base64,aGVsbG8=");
+  assert.equal(body.input[0].content[0].detail, "high");
   assert.equal(body.text.format.type, "json_schema");
   assert.equal(body.text.format.strict, true);
   assert.deepEqual(body.text.format.schema.required.sort(), ["answer", "reason", "recovery_action", "route"]);
+  assert.match(body.input[0].content[1].text, /90% slide/);
+  assert.match(body.input[0].content[1].text, /không chọn NEED_WIDER_REGION/);
+  assert.match(body.input[0].content[1].text, /vùng nội dung/);
 });
 
 test("builds a compatible multimodal chat request", () => {
@@ -39,9 +46,11 @@ test("builds a compatible multimodal chat request", () => {
   assert.equal(body.model, "gc/gemini-2.5-flash");
   assert.equal(body.messages[1].content[0].type, "image_url");
   assert.equal(body.messages[1].content[0].image_url.url, "data:image/png;base64,aGVsbG8=");
+  assert.equal(body.messages[1].content[0].image_url.detail, "high");
   assert.equal(body.response_format.type, "json_schema");
   assert.equal(body.response_format.json_schema.strict, true);
   assert.match(body.messages[1].content[1].text, /tiếng Việt/);
+  assert.match(body.messages[1].content[1].text, /Hand-crafted features/);
 });
 
 test("builds a direct Gemini multimodal structured-output request", () => {
@@ -112,6 +121,68 @@ test("calls the fixed endpoint and returns the validated result", async () => {
   assert.equal(request.url, "https://api.openai.com/v1/responses");
   assert.equal(request.options.headers.Authorization, "Bearer secret-key");
   assert.equal(JSON.parse(request.options.body).input[0].content[0].type, "input_image");
+});
+
+test("retries once instead of asking for a wider region that already covers most of the slide", async () => {
+  let calls = 0;
+  const needWider = {
+    route: "NEED_WIDER_REGION",
+    answer: "",
+    reason: "Có thể thiếu nhãn.",
+    recovery_action: "Khoanh rộng hơn.",
+  };
+  const result = await analyzeVisual(input, {
+    provider: {
+      name: "openai",
+      protocol: "responses",
+      endpoint: "https://api.openai.com/v1/responses",
+      apiKey: "secret-key",
+      model: "gpt-5.6-terra",
+      configured: true,
+    },
+    fetchImpl: async (_url, options) => {
+      calls += 1;
+      const body = JSON.parse(options.body);
+      if (calls === 2) assert.match(body.input[0].content[1].text, /không đòi người học khoanh rộng hơn/);
+      const answer = calls === 1 ? needWider : grounded;
+      return new Response(JSON.stringify({
+        output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(answer) }] }],
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    },
+  });
+
+  assert.equal(calls, 2);
+  assert.deepEqual(result, grounded);
+});
+
+test("never returns NEED_WIDER_REGION after retrying an already-wide selection", async () => {
+  let calls = 0;
+  const needWider = {
+    route: "NEED_WIDER_REGION",
+    answer: "",
+    reason: "Có thể thiếu nhãn.",
+    recovery_action: "Khoanh rộng hơn.",
+  };
+  const result = await analyzeVisual(input, {
+    provider: {
+      name: "openai",
+      protocol: "responses",
+      endpoint: "https://api.openai.com/v1/responses",
+      apiKey: "secret-key",
+      model: "gpt-5.6-terra",
+      configured: true,
+    },
+    fetchImpl: async () => {
+      calls += 1;
+      return new Response(JSON.stringify({
+        output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(needWider) }] }],
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    },
+  });
+
+  assert.equal(calls, 2);
+  assert.equal(result.route, "NEED_BETTER_IMAGE");
+  assert.match(result.reason, /đã đủ rộng/);
 });
 
 test("calls direct Gemini with API-key auth", async () => {
