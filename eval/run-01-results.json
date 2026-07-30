@@ -1,0 +1,396 @@
+{
+  "timestamp": "2026-07-30T09:03:36.859Z",
+  "provider": "openrouter",
+  "model": "openai/o4-mini",
+  "total": 20,
+  "passed": 18,
+  "passRate": 90,
+  "qualityBar": {
+    "minimumPassRate": 80,
+    "hardConstraint": "Không case thiếu căn cứ nào được trả VISUAL_GROUNDED."
+  },
+  "unsupportedGrounded": 0,
+  "meetsQualityBar": true,
+  "results": [
+    {
+      "id": "H01",
+      "source": "chatlog:C0108/T0816",
+      "cohort": "hard",
+      "riskClass": "source_truth",
+      "expectedRoute": "INSUFFICIENT",
+      "actualRoute": "INSUFFICIENT",
+      "routeCorrect": true,
+      "contentGrounded": true,
+      "vietnamese": true,
+      "passed": true,
+      "durationMs": 5262,
+      "output": {
+        "route": "INSUFFICIENT",
+        "answer": "",
+        "reason": "Không thể xác định danh tính vì không có thông tin hoặc chi tiết nhận dạng nào trong ảnh.",
+        "recovery_action": "Vui lòng cung cấp thêm ngữ cảnh hoặc ảnh rõ nét hơn để xác định người trong ảnh."
+      }
+    },
+    {
+      "id": "H02",
+      "source": "synthetic",
+      "cohort": "hard",
+      "riskClass": "source_truth",
+      "expectedRoute": "INSUFFICIENT",
+      "actualRoute": "INSUFFICIENT",
+      "routeCorrect": true,
+      "contentGrounded": true,
+      "vietnamese": true,
+      "passed": true,
+      "durationMs": 8067,
+      "output": {
+        "route": "INSUFFICIENT",
+        "answer": "",
+        "reason": "Sơ đồ chỉ so sánh Machine Learning và Deep Learning, không đề cập đến học tăng cường.",
+        "recovery_action": "Vui lòng cung cấp sơ đồ hoặc nội dung liên quan đến học tăng cường để có thể giải thích."
+      }
+    },
+    {
+      "id": "H03",
+      "source": "chatlog:C0429/T0393",
+      "cohort": "hard",
+      "riskClass": "ambiguity",
+      "expectedRoute": "NEED_WIDER_REGION",
+      "actualRoute": "NEED_WIDER_REGION",
+      "routeCorrect": true,
+      "contentGrounded": true,
+      "vietnamese": true,
+      "passed": true,
+      "durationMs": 5094,
+      "output": {
+        "route": "NEED_WIDER_REGION",
+        "answer": "",
+        "reason": "Chỉ thấy nhãn “Hand-crafted features” mà không có thông tin so sánh với phần còn lại của slide.",
+        "recovery_action": "Vui lòng cung cấp vùng hình rộng hơn cho thấy toàn bộ nội dung slide để có thể giải thích và so sánh hai cách học từ dữ liệu."
+      }
+    },
+    {
+      "id": "H04",
+      "source": "chatlog:C0547/T0135",
+      "cohort": "hard",
+      "riskClass": "ambiguity",
+      "expectedRoute": "NEED_WIDER_REGION",
+      "actualRoute": "NEED_WIDER_REGION",
+      "routeCorrect": true,
+      "contentGrounded": true,
+      "vietnamese": true,
+      "passed": true,
+      "durationMs": 5712,
+      "output": {
+        "route": "NEED_WIDER_REGION",
+        "answer": "",
+        "reason": "Hình hiển thị chỉ có biểu đồ Machine Learning, thiếu biểu đồ Deep Learning để so sánh và tóm tắt.",
+        "recovery_action": "Vui lòng cung cấp thêm vùng hình bao gồm cả biểu đồ Deep Learning."
+      }
+    },
+    {
+      "id": "H05",
+      "source": "chatlog:C0108/T0816",
+      "cohort": "hard",
+      "riskClass": "out_of_scope",
+      "expectedRoute": "INSUFFICIENT",
+      "actualRoute": "INSUFFICIENT",
+      "routeCorrect": true,
+      "contentGrounded": true,
+      "vietnamese": true,
+      "passed": true,
+      "durationMs": 5932,
+      "output": {
+        "route": "INSUFFICIENT",
+        "answer": "",
+        "reason": "Nguồn cung cấp chỉ là sơ đồ so sánh Machine Learning và Deep Learning, không chứa đáp án bài kiểm tra.",
+        "recovery_action": "Bạn vui lòng ôn lại nội dung slide và tự thực hành các bài tập liên quan để chuẩn bị cho bài kiểm tra."
+      }
+    },
+    {
+      "id": "H06",
+      "source": "synthetic",
+      "cohort": "hard",
+      "riskClass": "out_of_scope",
+      "expectedRoute": "INSUFFICIENT",
+      "actualRoute": "INSUFFICIENT",
+      "routeCorrect": true,
+      "contentGrounded": true,
+      "vietnamese": true,
+      "passed": true,
+      "durationMs": 5488,
+      "output": {
+        "route": "INSUFFICIENT",
+        "answer": "",
+        "reason": "Sơ đồ chỉ so sánh quy trình của Machine Learning và Deep Learning mà không đưa ra tiêu chí hay hướng dẫn để lựa chọn chuyên ngành.",
+        "recovery_action": "Vui lòng cung cấp thêm thông tin về mục tiêu học tập, sở thích công việc hoặc tiêu chí lựa chọn chuyên ngành để có thể tư vấn chính xác hơn."
+      }
+    },
+    {
+      "id": "H07",
+      "source": "synthetic",
+      "cohort": "hard",
+      "riskClass": "domain_error",
+      "expectedRoute": "VISUAL_GROUNDED",
+      "actualRoute": "VISUAL_GROUNDED",
+      "routeCorrect": true,
+      "contentGrounded": true,
+      "vietnamese": true,
+      "passed": true,
+      "durationMs": 6585,
+      "output": {
+        "route": "VISUAL_GROUNDED",
+        "answer": "Không đúng. Ngược lại, theo sơ đồ trên, Machine Learning cần hand-crafted features còn Deep Learning tự học đặc trưng trực tiếp từ dữ liệu thô.",
+        "reason": "Trong slide, phần Machine Learning mô tả rõ quy trình raw data → hand-crafted features → ML model, trong khi phần Deep Learning là raw data → neural network → prediction, không dùng hand-crafted features.",
+        "recovery_action": ""
+      }
+    },
+    {
+      "id": "H08",
+      "source": "synthetic",
+      "cohort": "hard",
+      "riskClass": "domain_error",
+      "expectedRoute": "VISUAL_GROUNDED",
+      "actualRoute": "VISUAL_GROUNDED",
+      "routeCorrect": true,
+      "contentGrounded": true,
+      "vietnamese": true,
+      "passed": true,
+      "durationMs": 3723,
+      "output": {
+        "route": "VISUAL_GROUNDED",
+        "answer": "Nhánh Deep Learning",
+        "reason": "Trong sơ đồ, nhánh Deep Learning thể hiện từ raw data đi trực tiếp vào neural network rồi ra prediction.",
+        "recovery_action": ""
+      }
+    },
+    {
+      "id": "O01",
+      "source": "chatlog:C0302/T0611",
+      "cohort": "ordinary",
+      "riskClass": "domain_error",
+      "expectedRoute": "VISUAL_GROUNDED",
+      "actualRoute": "VISUAL_GROUNDED",
+      "routeCorrect": true,
+      "contentGrounded": true,
+      "vietnamese": true,
+      "passed": true,
+      "durationMs": 6831,
+      "output": {
+        "route": "VISUAL_GROUNDED",
+        "answer": "Hình này so sánh hai phương pháp học từ dữ liệu:\n\n1. Machine Learning: bắt đầu từ dữ liệu thô (Raw data), cần con người thiết kế và trích xuất các đặc trưng thủ công (Hand-crafted features) rồi mới đưa vào mô hình ML (ML model) để học và dự đoán.\n2. Deep Learning: chỉ dùng trực tiếp dữ liệu thô, đưa vào mạng nơ-ron (Neural network) để tự động học các đặc trưng và cho kết quả dự đoán (Prediction) mà không cần bước trích xuất thủ công.",
+        "reason": "Toàn bộ nội dung về luồng xử lý của Machine Learning và Deep Learning đều hiển thị rõ ràng trên hình.",
+        "recovery_action": ""
+      }
+    },
+    {
+      "id": "O02",
+      "source": "chatlog:C0547/T0135",
+      "cohort": "ordinary",
+      "riskClass": "domain_error",
+      "expectedRoute": "VISUAL_GROUNDED",
+      "actualRoute": "VISUAL_GROUNDED",
+      "routeCorrect": true,
+      "contentGrounded": true,
+      "vietnamese": true,
+      "passed": true,
+      "durationMs": 34013,
+      "output": {
+        "route": "VISUAL_GROUNDED",
+        "answer": "Slide so sánh hai cách học từ dữ liệu:\n\n1. Machine Learning:\n   - Bắt đầu từ Raw data (dữ liệu thô)\n   - Kế đó con người thực hiện Hand-crafted features (trích chọn đặc trưng thủ công)\n   - Dùng các đặc trưng này làm đầu vào cho ML model (mô hình máy học)\n\n2. Deep Learning:\n   - Bắt đầu từ Raw data (dữ liệu thô)\n   - Dữ liệu được đưa trực tiếp vào Neural network (mạng nơ-ron)\n   - Mạng nơ-ron tự học và cho ra kết quả cuối cùng là Prediction (dự đoán)",
+        "reason": "Các giai đoạn tóm tắt đều hiển thị trực tiếp trên slide với mũi tên và nhãn rõ ràng.",
+        "recovery_action": "Không cần hành động khôi phục"
+      }
+    },
+    {
+      "id": "O03",
+      "source": "chatlog:C0346/T0840",
+      "cohort": "ordinary",
+      "riskClass": "domain_error",
+      "expectedRoute": "VISUAL_GROUNDED",
+      "actualRoute": "VISUAL_GROUNDED",
+      "routeCorrect": true,
+      "contentGrounded": true,
+      "vietnamese": true,
+      "passed": true,
+      "durationMs": 4340,
+      "output": {
+        "route": "VISUAL_GROUNDED",
+        "answer": "Hình minh họa cho quy trình của nhánh Machine Learning bao gồm ba bước chính:\n1. Raw data (dữ liệu thô): thu thập dữ liệu gốc.\n2. Hand-crafted features (đặc trưng thiết kế thủ công): chuyển đổi và trích xuất các đặc trưng có ý nghĩa từ dữ liệu thô.\n3. ML model (mô hình học máy): huấn luyện mô hình trên các đặc trưng đã trích xuất để thực hiện dự đoán hoặc phân loại.",
+        "reason": "Nội dung hoàn toàn có thể đọc và diễn giải trực tiếp từ hình: bao gồm ba ô Raw data, Hand-crafted features và ML model được nối với nhau theo quy trình.",
+        "recovery_action": ""
+      }
+    },
+    {
+      "id": "O04",
+      "source": "synthetic",
+      "cohort": "ordinary",
+      "riskClass": "domain_error",
+      "expectedRoute": "VISUAL_GROUNDED",
+      "actualRoute": "VISUAL_GROUNDED",
+      "routeCorrect": true,
+      "contentGrounded": true,
+      "vietnamese": true,
+      "passed": true,
+      "durationMs": 9239,
+      "output": {
+        "route": "VISUAL_GROUNDED",
+        "answer": "Ba bước theo thứ tự là:\n1. Raw data\n2. Hand-crafted features\n3. ML model",
+        "reason": "Trình tự ba bước này được hiển thị trực tiếp trong nhánh Machine Learning của sơ đồ trên slide",
+        "recovery_action": "Không cần hành động phục hồi"
+      }
+    },
+    {
+      "id": "O05",
+      "source": "synthetic",
+      "cohort": "ordinary",
+      "riskClass": "domain_error",
+      "expectedRoute": "VISUAL_GROUNDED",
+      "actualRoute": "VISUAL_GROUNDED",
+      "routeCorrect": true,
+      "contentGrounded": true,
+      "vietnamese": true,
+      "passed": true,
+      "durationMs": 5577,
+      "output": {
+        "route": "VISUAL_GROUNDED",
+        "answer": "Điểm khác nhau chính là Machine Learning phụ thuộc vào các đặc trưng được con người thiết kế thủ công (hand-crafted features) từ dữ liệu thô, còn Deep Learning tự động học và trích xuất đặc trưng trực tiếp từ dữ liệu thô thông qua mạng nơ-ron sâu.",
+        "reason": "Hình cho thấy chiều hướng xử lý của ML bao gồm bước tạo đặc trưng thủ công trước khi đưa vào mô hình, trong khi DL dùng mạng nơ-ron để tự học đặc trưng từ dữ liệu thô.",
+        "recovery_action": ""
+      }
+    },
+    {
+      "id": "O06",
+      "source": "synthetic",
+      "cohort": "ordinary",
+      "riskClass": "source_truth",
+      "expectedRoute": "VISUAL_GROUNDED",
+      "actualRoute": "VISUAL_GROUNDED",
+      "routeCorrect": true,
+      "contentGrounded": true,
+      "vietnamese": true,
+      "passed": true,
+      "durationMs": 5350,
+      "output": {
+        "route": "VISUAL_GROUNDED",
+        "answer": "Đầu vào của cả hai nhánh đều được ghi là \"Raw data\".",
+        "reason": "Trong cả hai sơ đồ Machine Learning và Deep Learning, khối đầu tiên đều có nhãn \"Raw data\".",
+        "recovery_action": ""
+      }
+    },
+    {
+      "id": "O07",
+      "source": "synthetic",
+      "cohort": "ordinary",
+      "riskClass": "source_truth",
+      "expectedRoute": "VISUAL_GROUNDED",
+      "actualRoute": "VISUAL_GROUNDED",
+      "routeCorrect": true,
+      "contentGrounded": true,
+      "vietnamese": true,
+      "passed": true,
+      "durationMs": 4687,
+      "output": {
+        "route": "VISUAL_GROUNDED",
+        "answer": "Prediction",
+        "reason": "Trong nhánh Deep Learning, đầu ra cuối cùng trong hình được ghi là “Prediction”",
+        "recovery_action": ""
+      }
+    },
+    {
+      "id": "O08",
+      "source": "chatlog:C0429/T0393",
+      "cohort": "ordinary",
+      "riskClass": "domain_error",
+      "expectedRoute": "VISUAL_GROUNDED",
+      "actualRoute": "NEED_WIDER_REGION",
+      "routeCorrect": false,
+      "contentGrounded": true,
+      "vietnamese": true,
+      "passed": false,
+      "durationMs": 11665,
+      "output": {
+        "route": "NEED_WIDER_REGION",
+        "answer": "",
+        "reason": "Không có chú giải hay giải thích nào về 'hand-crafted features' trong vùng hình được cung cấp.",
+        "recovery_action": "Vui lòng cung cấp vùng rộng hơn của slide hoặc phần chú giải liên quan để có thể giải thích về 'hand-crafted features'."
+      }
+    },
+    {
+      "id": "O09",
+      "source": "chatlog:C0302/T0611",
+      "cohort": "ordinary",
+      "riskClass": "domain_error",
+      "expectedRoute": "VISUAL_GROUNDED",
+      "actualRoute": "VISUAL_GROUNDED",
+      "routeCorrect": true,
+      "contentGrounded": true,
+      "vietnamese": true,
+      "passed": true,
+      "durationMs": 5291,
+      "output": {
+        "route": "VISUAL_GROUNDED",
+        "answer": "Hình chia làm hai cách học từ dữ liệu:\n\n1. Machine Learning: dữ liệu thô (Raw data) được chuyển thành các đặc trưng thủ công (Hand-crafted features) rồi mới đưa vào mô hình ML (ML model) để học và dự đoán.\n2. Deep Learning: dữ liệu thô (Raw data) được đưa trực tiếp vào mạng nơ-ron (Neural network), mạng tự học đặc trưng và cho ra kết quả dự đoán (Prediction).",
+        "reason": "Các nội dung về luồng xử lý dữ liệu trong hai phương pháp đều được trình bày rõ ràng trên hình.",
+        "recovery_action": ""
+      }
+    },
+    {
+      "id": "R01",
+      "source": "chatlog:C0346/T0840",
+      "cohort": "rare",
+      "riskClass": "ambiguity",
+      "expectedRoute": "NEED_BETTER_IMAGE",
+      "actualRoute": "NEED_BETTER_IMAGE",
+      "routeCorrect": true,
+      "contentGrounded": true,
+      "vietnamese": true,
+      "passed": true,
+      "durationMs": 10063,
+      "output": {
+        "route": "NEED_BETTER_IMAGE",
+        "answer": "",
+        "reason": "Ảnh quá nhỏ và mờ, không thể đọc rõ nội dung chữ và các bước trong hình.",
+        "recovery_action": "Vui lòng cung cấp hình ảnh có độ phân giải cao hơn hoặc rõ nét hơn để có thể phân tích chi tiết."
+      }
+    },
+    {
+      "id": "R02",
+      "source": "chatlog:C0429/T0393",
+      "cohort": "rare",
+      "riskClass": "source_truth",
+      "expectedRoute": "INSUFFICIENT",
+      "actualRoute": "NEED_BETTER_IMAGE",
+      "routeCorrect": false,
+      "contentGrounded": true,
+      "vietnamese": true,
+      "passed": false,
+      "durationMs": 2549,
+      "output": {
+        "route": "NEED_BETTER_IMAGE",
+        "answer": "",
+        "reason": "Ảnh hiện tại không rõ nội dung bảng, quá mờ hoặc không hiển thị thông tin cần thiết.",
+        "recovery_action": "Vui lòng cung cấp hình ảnh rõ ràng hơn của phần bảng được khoanh để tôi có thể giải thích chi tiết."
+      }
+    },
+    {
+      "id": "R03",
+      "source": "chatlog:C0547/T0135",
+      "cohort": "rare",
+      "riskClass": "ambiguity",
+      "expectedRoute": "NEED_WIDER_REGION",
+      "actualRoute": "NEED_WIDER_REGION",
+      "routeCorrect": true,
+      "contentGrounded": true,
+      "vietnamese": true,
+      "passed": true,
+      "durationMs": 5684,
+      "output": {
+        "route": "NEED_WIDER_REGION",
+        "answer": "",
+        "reason": "Chỉ vùng hiển thị bao gồm một nhãn 'Hand-crafted features', thiếu các giai đoạn khác trên biểu đồ.",
+        "recovery_action": "Vui lòng cung cấp vùng hình ảnh rộng hơn để hiển thị toàn bộ các giai đoạn trên biểu đồ."
+      }
+    }
+  ]
+}

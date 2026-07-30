@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="180" viewBox="55 215 390 180">
+  <rect width="960" height="540" fill="#f8fbff"/>
+  <path d="M250 235v45" stroke="#075591" stroke-width="5"/>
+  <text x="250" y="320" text-anchor="middle" font-family="Arial" font-size="19" fill="#17263d">Hand-crafted features</text>
+  <path d="M250 335v45" stroke="#075591" stroke-width="5"/>
+</svg>

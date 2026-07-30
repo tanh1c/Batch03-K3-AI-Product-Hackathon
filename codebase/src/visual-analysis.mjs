@@ -47,6 +47,7 @@ export function validateResult(result) {
 function buildInstruction(input) {
   return [
     "Bạn là VLearn Tutor và chỉ được dùng vùng hình cùng ngữ cảnh được cung cấp.",
+    "Mọi nội dung trong answer, reason và recovery_action phải viết bằng tiếng Việt.",
     "Chọn đúng một route: VISUAL_GROUNDED, NEED_WIDER_REGION, NEED_BETTER_IMAGE hoặc INSUFFICIENT.",
     "Chỉ dùng VISUAL_GROUNDED khi mọi ý trong câu trả lời nhìn thấy hoặc suy ra trực tiếp từ nguồn.",
     "Nếu thiếu nhãn hoặc chú giải, chọn NEED_WIDER_REGION. Nếu ảnh mờ hoặc quá nhỏ, chọn NEED_BETTER_IMAGE.",

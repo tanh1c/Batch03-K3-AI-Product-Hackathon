@@ -1,0 +1,68 @@
+{
+  "records": 2522,
+  "completedTurns": 1261,
+  "conversations": 585,
+  "users": 369,
+  "visualRegionRequests": 5,
+  "visualRegionUsers": 5,
+  "visualContextFailures": 4,
+  "technicalRequests": 37,
+  "technicalUsers": 28,
+  "conceptExplanationRequests": 666,
+  "conceptExplanationUsers": 270,
+  "unavailableReplies": 197,
+  "downRatedTurns": 37,
+  "visualCandidates": [
+    {
+      "conversation_id": "C0108",
+      "turn_id": "T0816",
+      "student": "người trong ảnh là ai"
+    },
+    {
+      "conversation_id": "C0302",
+      "turn_id": "T0611",
+      "student": "giải thích hình ảnh này"
+    },
+    {
+      "conversation_id": "C0346",
+      "turn_id": "T0840",
+      "student": "phân tích hình ảnh được khoanh đỏ ở slide 59"
+    },
+    {
+      "conversation_id": "C0429",
+      "turn_id": "T0393",
+      "student": "giải thích phần bảng được khoanh"
+    },
+    {
+      "conversation_id": "C0547",
+      "turn_id": "T0135",
+      "student": "tóm tắt nội dung các giai đoạn được mô tả trên slide các biểu đồ"
+    }
+  ],
+  "visualFailures": [
+    {
+      "conversation_id": "C0108",
+      "turn_id": "T0816",
+      "student": "(Trang 2, đoạn được chọn: \"người trong ảnh là ai\")\nngười trong ảnh là ai",
+      "tutor": "Rất xin lỗi bạn, trong tài liệu của bài học hôm nay không có thông tin hay hình ảnh nào về danh tính của một cá nhân cụ thể. Nội dung tài liệu tập trung vào các tiêu chí thiết kế chỉ số (metric) cho tính năng AI [trang 59].\n\nNếu bạn đang thắc mắc về một hình ảnh nào đó trong slide, có thể đó là ví dụ minh họa hoặc thông tin nằm ngoài phạm vi tài liệu kỹ thuật này."
+    },
+    {
+      "conversation_id": "C0346",
+      "turn_id": "T0840",
+      "student": "(Trang 59, đoạn được chọn: \"phân tích hình ảnh được khoanh đỏ ở slide 59\")\nphân tích hình ảnh được khoanh đỏ ở slide 59",
+      "tutor": "Rất tiếc, tôi không tìm thấy thông tin hoặc hình ảnh cụ thể được khoanh đỏ tại slide 59 trong tài liệu bài giảng được cung cấp. Có vẻ như nội dung đó không hiển thị trong dữ liệu slide hiện có của tôi.\n\nBạn có thể cung cấp thêm thông tin về chủ đề hoặc nội dung hình ảnh đó không? Tôi sẽ dựa vào đó để hỗ trợ bạn phân tích."
+    },
+    {
+      "conversation_id": "C0429",
+      "turn_id": "T0393",
+      "student": "(Trang 9, đoạn được chọn: \"giải thích phần bảng được khoanh\")\ngiải thích phần bảng được khoanh",
+      "tutor": "Rất xin lỗi bạn, vì hệ thống tài liệu hiện tại không thể xác định được hình ảnh hoặc nội dung cụ thể trong \"phần bảng được khoanh tròn\" mà bạn đang nhắc tới trên trang 9.\n\nĐể tôi có thể hỗ trợ bạn chính xác nhất, bạn vui lòng chia sẻ nội dung văn bản bên trong bảng đó hoặc mô tả các tiêu đề cột/hàng của bảng nhé. Dựa trên thông tin bạn cung cấp, tôi sẽ giải thích ý nghĩa của nó trong ngữ cảnh bài học về *Prompt Engineering* và *Tool Calling*."
+    },
+    {
+      "conversation_id": "C0547",
+      "turn_id": "T0135",
+      "student": "(Trang 16, đoạn được chọn: \"tóm tắt nội dung các giai đoạn được mô tả trên slide các biểu đồ\")\ntóm tắt nội dung các giai đoạn được mô tả trên slide các biểu đồ",
+      "tutor": "Rất xin lỗi, hiện tại tôi không tìm thấy nội dung nào liên quan đến các \"giai đoạn\" hoặc \"biểu đồ\" trong tài liệu giảng dạy của ngày học này. Bạn có thể kiểm tra lại xem nội dung này nằm ở bài học nào hoặc cung cấp thêm thông tin chi tiết để tôi có thể hỗ trợ bạn tốt hơn không?"
+    }
+  ]
+}

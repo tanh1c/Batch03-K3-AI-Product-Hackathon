@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="350" viewBox="55 100 390 350">
+  <rect width="960" height="540" fill="#f8fbff"/>
+  <rect x="55" y="100" width="390" height="350" rx="18" fill="#e5f0ff" stroke="#8db9ff" stroke-width="3"/>
+  <text x="250" y="150" text-anchor="middle" font-family="Arial" font-size="25" font-weight="700" fill="#075591">Machine Learning</text>
+  <text x="250" y="220" text-anchor="middle" font-family="Arial" font-size="21" fill="#17263d">Raw data</text>
+  <path d="M250 235v45" stroke="#075591" stroke-width="5"/>
+  <text x="250" y="320" text-anchor="middle" font-family="Arial" font-size="19" fill="#17263d">Hand-crafted features</text>
+  <path d="M250 335v45" stroke="#075591" stroke-width="5"/>
+  <text x="250" y="420" text-anchor="middle" font-family="Arial" font-size="21" font-weight="700" fill="#075591">ML model</text>
+</svg>
