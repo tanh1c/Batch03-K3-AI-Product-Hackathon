@@ -34,6 +34,77 @@ function intersectionRatio(a, b) {
   return union > 0 ? intersection / union : 0;
 }
 
+function multiplyMatrices(first, second) {
+  return [
+    first[0] * second[0] + first[2] * second[1],
+    first[1] * second[0] + first[3] * second[1],
+    first[0] * second[2] + first[2] * second[3],
+    first[1] * second[2] + first[3] * second[3],
+    first[0] * second[4] + first[2] * second[5] + first[4],
+    first[1] * second[4] + first[3] * second[5] + first[5],
+  ];
+}
+
+function transformPoint(matrix, x, y) {
+  return [
+    matrix[0] * x + matrix[2] * y + matrix[4],
+    matrix[1] * x + matrix[3] * y + matrix[5],
+  ];
+}
+
+function transformedBounds(viewport, matrix, sourceBounds) {
+  const [left, top, right, bottom] = sourceBounds;
+  const points = [
+    [left, top],
+    [right, top],
+    [right, bottom],
+    [left, bottom],
+  ].map(([x, y]) => transformPoint(matrix, x, y))
+    .map(([x, y]) => viewport.convertToViewportPoint?.(x, y) || [x, viewport.height - y]);
+  const xs = points.map(([x]) => x);
+  const ys = points.map(([, y]) => y);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  return clampBounds({
+    x: x / viewport.width,
+    y: y / viewport.height,
+    width: (Math.max(...xs) - x) / viewport.width,
+    height: (Math.max(...ys) - y) / viewport.height,
+  });
+}
+
+function mergeNearbyVectors(candidates, gap = 0.02) {
+  const merged = [];
+
+  for (const candidate of candidates) {
+    const group = { ...candidate, bounds: { ...candidate.bounds } };
+    let joined;
+
+    do {
+      joined = false;
+      for (let index = merged.length - 1; index >= 0; index--) {
+        const bounds = merged[index].bounds;
+        if (group.bounds.x > bounds.x + bounds.width + gap
+          || bounds.x > group.bounds.x + group.bounds.width + gap
+          || group.bounds.y > bounds.y + bounds.height + gap
+          || bounds.y > group.bounds.y + group.bounds.height + gap) continue;
+
+        const left = Math.min(group.bounds.x, bounds.x);
+        const top = Math.min(group.bounds.y, bounds.y);
+        const right = Math.max(group.bounds.x + group.bounds.width, bounds.x + bounds.width);
+        const bottom = Math.max(group.bounds.y + group.bounds.height, bounds.y + bounds.height);
+        group.bounds = { x: left, y: top, width: right - left, height: bottom - top };
+        merged.splice(index, 1);
+        joined = true;
+      }
+    } while (joined);
+
+    merged.push(group);
+  }
+
+  return merged;
+}
+
 /**
  * Filter raw candidates by area, background ratio, and IoU overlap.
  *
@@ -51,21 +122,21 @@ export function filterCandidates(candidates, options = {}) {
   const maxCandidates = options.maxCandidates ?? 10;
 
   // 1. Filter out invalid geometry, tiny bounds, or near-full page background
-  const valid = candidates.filter((c) => {
-    if (!c?.bounds) return false;
-    let b;
+  const valid = candidates.flatMap((candidate) => {
+    if (!candidate?.bounds) return [];
+    let bounds;
     try {
-      b = clampBounds(c.bounds);
+      bounds = clampBounds(candidate.bounds);
     } catch {
-      return false;
+      return [];
     }
 
-    const area = b.width * b.height;
-    if (area < minArea) return false;
-    if (area >= maxArea) return false;
-    if (b.width >= maxDim && b.height >= maxDim) return false;
+    const area = bounds.width * bounds.height;
+    if (area < minArea) return [];
+    if (area >= maxArea) return [];
+    if (bounds.width >= maxDim && bounds.height >= maxDim) return [];
 
-    return true;
+    return [{ ...candidate, bounds }];
   });
 
   // 2. Sort by confidence descending, then by area descending
@@ -143,43 +214,46 @@ export function detectImageCandidates(operatorList, viewport, pageNumber = 1, op
     });
   }
 
-  // Case B: PDF.js fnArray and argsArray parsing for paintImageXObject / paintInlineImageXObject
+  let vectorCount = 0;
+  const maxVectorPaths = options.maxVectorPaths ?? 1000;
   if (Array.isArray(operatorList?.fnArray) && Array.isArray(operatorList?.argsArray)) {
-    let imgCount = candidates.length;
-    let ctm = [1, 0, 0, 1, 0, 0]; // Default CTM identity matrix
+    let imageCount = candidates.length;
+    let ctm = [1, 0, 0, 1, 0, 0];
+    let vectorPaths = 0;
+    const stack = [];
 
     for (let i = 0; i < operatorList.fnArray.length; i++) {
       const fn = operatorList.fnArray[i];
       const args = operatorList.argsArray[i];
 
-      // Track matrix transforms (transform / setMatrix opcodes)
-      if (fn === 12 || fn === 13) {
-        if (Array.isArray(args) && args.length >= 6) {
-          ctm = args;
-        }
-      }
-
-      // Check for paintImage, paintInlineImage, paintImageXObject (opcodes 85, 86, 87)
-      if (fn === 85 || fn === 86 || fn === 87 || fn === "paintImageXObject" || fn === "paintInlineImageXObject") {
-        imgCount++;
-        const scaleX = Math.abs(ctm[0]);
-        const scaleY = Math.abs(ctm[3]);
-        const translateX = ctm[4];
-        const translateY = ctm[5];
-
-        const x = translateX / vpWidth;
-        const y = Math.max(0, vpHeight - translateY - scaleY) / vpHeight;
-        const w = scaleX / vpWidth;
-        const h = scaleY / vpHeight;
-
+      if (fn === 10) stack.push([...ctm]);
+      else if (fn === 11) ctm = stack.pop() || [1, 0, 0, 1, 0, 0];
+      else if (fn === 12 && Array.isArray(args) && args.length >= 6) {
+        ctm = multiplyMatrices(ctm, args);
+      } else if (fn === 85 || fn === 86 || fn === "paintImageXObject" || fn === "paintInlineImageXObject") {
         try {
-          const bounds = clampBounds({ x, y, width: w, height: h });
+          imageCount++;
           candidates.push({
-            id: `page-${pageNumber}-image-${imgCount}`,
+            id: `page-${pageNumber}-image-${imageCount}`,
             kind: "image",
-            bounds,
-            label: `Vùng hình ${imgCount}`,
+            bounds: transformedBounds(viewport, ctm, [0, 0, 1, 1]),
+            label: `Vùng hình ${imageCount}`,
             confidence: 0.8,
+          });
+        } catch {
+          // Ignore invalid geometry
+        }
+      } else if (fn === 91 && (Array.isArray(args?.[2]) || ArrayBuffer.isView(args?.[2])) && args[2].length >= 4) {
+        if (vectorPaths >= maxVectorPaths) continue;
+        vectorPaths++;
+        try {
+          vectorCount++;
+          candidates.push({
+            id: `page-${pageNumber}-vector-${vectorCount}`,
+            kind: "vector",
+            bounds: transformedBounds(viewport, ctm, args[2]),
+            label: `Vùng đồ họa ${vectorCount}`,
+            confidence: 0.75,
           });
         } catch {
           // Ignore invalid geometry
@@ -188,10 +262,10 @@ export function detectImageCandidates(operatorList, viewport, pageNumber = 1, op
     }
   }
 
-  // Case C: Vector graphics drawing clusters
   if (Array.isArray(operatorList?.vectors)) {
-    operatorList.vectors.forEach((vec, idx) => {
+    operatorList.vectors.forEach((vec) => {
       try {
+        vectorCount++;
         const bounds = clampBounds({
           x: vec.x / vpWidth,
           y: vec.y / vpHeight,
@@ -199,10 +273,10 @@ export function detectImageCandidates(operatorList, viewport, pageNumber = 1, op
           height: vec.height / vpHeight,
         });
         candidates.push({
-          id: `page-${pageNumber}-vector-${idx + 1}`,
+          id: `page-${pageNumber}-vector-${vectorCount}`,
           kind: "vector",
           bounds,
-          label: vec.label || `Vùng đồ họa ${idx + 1}`,
+          label: vec.label || `Vùng đồ họa ${vectorCount}`,
           confidence: vec.confidence ?? 0.75,
         });
       } catch {
@@ -232,30 +306,31 @@ export function detectTextCandidates(textItems, viewport, pageNumber = 1, option
   const vpWidth = viewport.width;
   const vpHeight = viewport.height;
 
-  // 1. Convert text items to normalized bounding boxes
+  const maxTextItems = options.maxTextItems ?? 4000;
   const normalizedItems = textItems
+    .slice(0, maxTextItems)
     .map((item) => {
       if (!item || typeof item.str !== "string" || !item.str.trim()) return null;
 
       const transform = item.transform || [1, 0, 0, 1, 0, 0];
-      const fontSize = Math.abs(transform[3]) || Math.abs(transform[0]) || item.height || 12;
+      const fontSize = Math.hypot(transform[2], transform[3]) || item.height || 12;
       const width = item.width || item.str.length * (fontSize * 0.5);
-      const height = fontSize;
-
-      const pdfX = transform[4];
-      const pdfY = transform[5];
-
-      const left = pdfX;
-      const top = vpHeight - pdfY - height;
-
-      const normX = left / vpWidth;
-      const normY = top / vpHeight;
-      const normW = width / vpWidth;
-      const normH = height / vpHeight;
+      const height = item.height || fontSize;
+      const widthScale = Math.hypot(transform[0], transform[1]) || 1;
+      const heightScale = Math.hypot(transform[2], transform[3]) || 1;
+      const unitBounds = [
+        0,
+        0,
+        width / widthScale,
+        height / heightScale,
+      ];
 
       try {
-        const bounds = clampBounds({ x: normX, y: normY, width: normW, height: normH });
-        return { str: item.str.trim(), bounds, fontSize };
+        return {
+          str: item.str.trim(),
+          bounds: transformedBounds(viewport, transform, unitBounds),
+          fontSize,
+        };
       } catch {
         return null;
       }
@@ -270,10 +345,14 @@ export function detectTextCandidates(textItems, viewport, pageNumber = 1, option
   const lines = [];
   for (const item of normalizedItems) {
     let placed = false;
-    for (const line of lines) {
+    for (let index = lines.length - 1; index >= Math.max(0, lines.length - 8); index--) {
+      const line = lines[index];
       const avgY = line.bounds.y;
       const avgHeight = line.bounds.height;
-      if (Math.abs(item.bounds.y - avgY) <= avgHeight * 0.6) {
+      const lineRight = line.bounds.x + line.bounds.width;
+      const horizontalGap = item.bounds.x - lineRight;
+      if (Math.abs(item.bounds.y - avgY) <= avgHeight * 0.6
+        && horizontalGap <= Math.max(avgHeight * 2, 0.02)) {
         line.items.push(item);
         const minX = Math.min(line.bounds.x, item.bounds.x);
         const minY = Math.min(line.bounds.y, item.bounds.y);
@@ -298,7 +377,8 @@ export function detectTextCandidates(textItems, viewport, pageNumber = 1, option
 
   for (const line of lines) {
     let merged = false;
-    for (const block of blocks) {
+    for (let index = blocks.length - 1; index >= Math.max(0, blocks.length - 8); index--) {
+      const block = blocks[index];
       const blockBottom = block.bounds.y + block.bounds.height;
       const lineTop = line.bounds.y;
       const verticalGap = lineTop - blockBottom;
@@ -309,7 +389,7 @@ export function detectTextCandidates(textItems, viewport, pageNumber = 1, option
         const lineLeft = line.bounds.x;
         const lineRight = line.bounds.x + line.bounds.width;
 
-        const hasHorizontalOverlap = Math.max(blockLeft, lineLeft) < Math.min(blockRight, lineRight) + 0.1;
+        const hasHorizontalOverlap = Math.max(blockLeft, lineLeft) < Math.min(blockRight, lineRight) + 0.02;
         if (hasHorizontalOverlap) {
           block.lines.push(line);
           const minX = Math.min(block.bounds.x, line.bounds.x);
@@ -372,6 +452,20 @@ export function detectPageRegions({
   const imageCandidates = detectImageCandidates(operatorList, viewport, pageNumber, options);
   const textCandidates = detectTextCandidates(textItems, viewport, pageNumber, options);
 
-  const rawAll = [...imageCandidates, ...textCandidates];
+  const maxVectorArea = options.maxVectorArea ?? 0.7;
+  const minVectorDim = options.minVectorDim ?? 0.05;
+  const maxDim = options.maxDim ?? 0.98;
+  const vectors = imageCandidates.filter(({ kind, bounds }) =>
+    kind === "vector"
+    && bounds.width * bounds.height < maxVectorArea
+    && !(bounds.width >= maxDim && bounds.height >= maxDim));
+  const rawAll = [
+    ...imageCandidates.filter(({ kind }) => kind !== "vector"),
+    ...mergeNearbyVectors(vectors, options.vectorGap).filter(({ bounds }) =>
+      bounds.width >= minVectorDim
+      && bounds.height >= minVectorDim
+      && bounds.width * bounds.height < maxVectorArea),
+    ...textCandidates,
+  ];
   return filterCandidates(rawAll, options);
 }
