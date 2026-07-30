@@ -1,5 +1,6 @@
 import * as pdfjsLib from "/vendor/pdf.mjs";
 import { toPixelBounds } from "/geometry.mjs";
+import { createSnipSelection } from "/snip.mjs";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = "/vendor/pdf.worker.mjs";
 
@@ -45,6 +46,7 @@ const ICONS = {
   moon: '<path d="M20 15.2A8 8 0 1 1 8.8 4 6.3 6.3 0 0 0 20 15.2Z"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   cursor: '<path d="m5 3 13 8-6 2-3 6z"/>',
+  snip: '<path d="M4 4h6M4 4v6M20 4h-6M20 4v6M4 20h6M4 20v-6M20 20h-6M20 20v-6"/>',
   pen: '<path d="m4 20 4.2-1 10.6-10.6a2 2 0 0 0-2.8-2.8L5.4 16.2zM14.5 7.1l2.8 2.8"/>',
   highlighter: '<path d="m4 17 7-11 6 4-7 11M3 21h18M9.5 18.5l-4-2.5"/>',
   circle: '<circle cx="12" cy="12" r="7.5"/>',
@@ -91,6 +93,7 @@ const state = {
   theme: stored.theme || "light",
   selectionText: "",
   selectionPage: 1,
+  snipSelection: null,
   visualSelection: null,
   noteDraftPage: 1,
   chat: [],
@@ -286,6 +289,7 @@ async function activateDocument(id) {
   if (id === "demo-foundation") {
     cancelPdfRenders();
     clearVisualSelection();
+    clearSnipSelection();
     state.document = { id: "demo-foundation", name: "AI trong hành động.pdf", type: "demo" };
     state.pdfDocument = null;
     state.pdfPages = [];
@@ -318,6 +322,7 @@ function renderDemoDocument() {
   });
   updatePageModes();
   updateCurrentPageClass();
+  renderSnipSelection();
 }
 
 function demoPageMarkup(page, index) {
@@ -342,7 +347,7 @@ function createPageShell(pageNumber, baseWidth, baseHeight) {
   shell.innerHTML = `
     <div class="page-meta"><span>Trang ${pageNumber} / ${state.totalPages}</span><span>${escapeHtml(state.document.name)}</span></div>
     <div class="page-paper" style="width:${paperWidth}px;height:${paperHeight}px">
-      <canvas class="annotation-canvas"></canvas><div class="annotation-markers"></div><div class="page-note-markers"></div>
+      <canvas class="annotation-canvas"></canvas><div class="snip-preview hidden" aria-hidden="true"></div><div class="annotation-markers"></div><div class="page-note-markers"></div>
     </div>`;
   return shell;
 }
@@ -365,6 +370,7 @@ async function handleFile(file) {
 async function loadPdf(file, docMeta) {
   cancelPdfRenders();
   clearVisualSelection();
+  clearSnipSelection();
   showLoading(true, "Đang mở PDF…");
   try {
     const data = new Uint8Array(await file.arrayBuffer());
@@ -404,6 +410,7 @@ async function loadPdf(file, docMeta) {
 
     setupLazyPdfRendering();
     updatePageModes();
+    renderSnipSelection();
     updateChrome();
     renderLibrary();
     resetChat();
@@ -490,7 +497,7 @@ function setMode(mode) {
   document.querySelectorAll("[data-mode]").forEach((button) => button.classList.toggle("active", button.dataset.mode === mode));
   elements.moreToolsButton.classList.toggle("active", mode === "circle" || mode === "eraser");
   elements.drawingOptions.classList.toggle("hidden", mode !== "circle");
-  if (mode === "read" || mode === "pen" || mode === "highlight") hideMoreToolsPanel();
+  if (mode === "read" || mode === "snip" || mode === "pen" || mode === "highlight") hideMoreToolsPanel();
   hideSelectionMenu();
   hideHighlightPopover();
   hideRegionPopover();
@@ -498,6 +505,7 @@ function setMode(mode) {
   updatePageModes();
   const messages = {
     read: "Chế độ đọc: bôi đen chữ hoặc nhấp chuột phải để mở menu ngữ cảnh.",
+    snip: "Giữ và kéo để chọn một vùng hình chữ nhật trên slide.",
     pen: "Giữ và kéo chuột để viết lên slide.",
     highlight: "Kéo qua chữ để bôi highlight theo từng dòng.",
     circle: "Khoanh vùng nội dung đang khiến bạn gặp vấn đề.",
@@ -528,6 +536,23 @@ function updatePageModes() {
   elements.pagesHost.querySelectorAll(".page-shell").forEach((shell) => { shell.dataset.mode = state.mode; });
 }
 
+function renderSnipSelection(selection = state.snipSelection) {
+  elements.pagesHost.querySelectorAll(".snip-preview").forEach((preview) => {
+    const selected = selection && Number(preview.closest(".page-shell")?.dataset.page) === selection.pageNumber;
+    preview.classList.toggle("hidden", !selected);
+    if (!selected) return;
+    preview.style.left = `${selection.bounds.x * 100}%`;
+    preview.style.top = `${selection.bounds.y * 100}%`;
+    preview.style.width = `${selection.bounds.width * 100}%`;
+    preview.style.height = `${selection.bounds.height * 100}%`;
+  });
+}
+
+function clearSnipSelection() {
+  state.snipSelection = null;
+  renderSnipSelection();
+}
+
 function setupAnnotationLayer(shell, pageNumber) {
   const canvas = shell.querySelector(".annotation-canvas");
   resizeAnnotationCanvas(canvas);
@@ -535,9 +560,23 @@ function setupAnnotationLayer(shell, pageNumber) {
   renderAnnotationMarkers(pageNumber);
   renderNoteMarkers(pageNumber);
   let drawing = null;
+  let snipDraft = null;
 
   canvas.addEventListener("pointerdown", (event) => {
     if (state.mode === "read" || state.mode === "highlight") return;
+    if (state.mode === "snip") {
+      if (event.button !== 0) return;
+      if (snipDraft) return;
+      event.preventDefault();
+      canvas.setPointerCapture(event.pointerId);
+      window.getSelection()?.removeAllRanges();
+      snipDraft = {
+        pointerId: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+      };
+      return;
+    }
     event.preventDefault();
     const point = normalizedPoint(event, canvas);
     if (state.mode === "eraser") {
@@ -556,11 +595,46 @@ function setupAnnotationLayer(shell, pageNumber) {
     };
   });
   canvas.addEventListener("pointermove", (event) => {
+    if (snipDraft) {
+      if (snipDraft.pointerId !== event.pointerId) return;
+      const preview = createSnipSelection({
+        pageNumber,
+        start: snipDraft,
+        end: { x: event.clientX, y: event.clientY },
+        pageRect: canvas.getBoundingClientRect(),
+        minimumSize: 1,
+      });
+      renderSnipSelection(preview || state.snipSelection);
+      return;
+    }
     if (!drawing) return;
     drawing.points.push(normalizedPoint(event, canvas));
     drawAnnotations(pageNumber, drawing);
   });
   canvas.addEventListener("pointerup", (event) => {
+    if (snipDraft) {
+      if (snipDraft.pointerId !== event.pointerId) return;
+      const selection = createSnipSelection({
+        pageNumber,
+        start: snipDraft,
+        end: { x: event.clientX, y: event.clientY },
+        pageRect: canvas.getBoundingClientRect(),
+      });
+      snipDraft = null;
+      if (!selection) {
+        renderSnipSelection();
+        showToast("Vùng chọn quá nhỏ. Hãy kéo một vùng lớn hơn.");
+        return;
+      }
+      clearVisualSelection();
+      state.snipSelection = selection;
+      state.currentPage = pageNumber;
+      renderSnipSelection();
+      updateCurrentPageClass();
+      updateChrome();
+      showToast(`Đã chọn vùng trên trang ${pageNumber}.`, "success");
+      return;
+    }
     if (!drawing) return;
     drawing.points.push(normalizedPoint(event, canvas));
     const completed = drawing;
@@ -573,7 +647,21 @@ function setupAnnotationLayer(shell, pageNumber) {
     updateChrome();
     if (valid && completed.kind === "circle") showRegionPopover(pageNumber, completed);
   });
-  canvas.addEventListener("pointercancel", () => { drawing = null; drawAnnotations(pageNumber); });
+  canvas.addEventListener("pointercancel", (event) => {
+    if (snipDraft) {
+      if (snipDraft.pointerId !== event.pointerId) return;
+      snipDraft = null;
+      renderSnipSelection();
+    }
+    drawing = null;
+    drawAnnotations(pageNumber);
+  });
+  canvas.addEventListener("lostpointercapture", (event) => {
+    if (!snipDraft) return;
+    if (snipDraft.pointerId !== event.pointerId) return;
+    snipDraft = null;
+    renderSnipSelection();
+  });
 }
 
 function resizeAnnotationCanvas(canvas) {
@@ -1045,7 +1133,7 @@ function rebuildPdfShells() {
     setupAnnotationLayer(shell, index + 1);
     wireReadInteractions(shell, index + 1);
   });
-  setupLazyPdfRendering(); updatePageModes(); updateCurrentPageClass();
+  setupLazyPdfRendering(); updatePageModes(); updateCurrentPageClass(); renderSnipSelection();
 }
 
 function scrollToPage(pageNumber, behavior = "smooth") {

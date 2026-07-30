@@ -157,10 +157,11 @@ svg.icon { width: 19px; height: 19px; stroke: currentColor; stroke-width: 1.9; s
 .demo-slide ::selection { background: rgba(41, 91, 128, .34); }
 .annotation-canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; touch-action: none; }
 .page-shell[data-mode="read"] .annotation-canvas, .page-shell[data-mode="highlight"] .annotation-canvas { pointer-events: none; }
-.page-shell[data-mode="pen"] .annotation-canvas { cursor: crosshair; }
+.page-shell[data-mode="snip"] .annotation-canvas, .page-shell[data-mode="pen"] .annotation-canvas { cursor: crosshair; }
 .page-shell[data-mode="highlight"] .page-paper, .page-shell[data-mode="highlight"] .pdf-text-layer :is(span, br) { cursor: text; }
 .page-shell[data-mode="circle"] .annotation-canvas { cursor: crosshair; }
 .page-shell[data-mode="eraser"] .annotation-canvas { cursor: cell; }
+.snip-preview { position: absolute; z-index: 4; pointer-events: none; border: 2px solid #075591; border-radius: 5px; background: rgba(13, 114, 184, .12); box-shadow: 0 0 0 2px rgba(255, 255, 255, .8); }
 .annotation-markers { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
 .annotation-marker { position: absolute; transform: translate(-50%, -50%); width: 23px; height: 23px; border: 2px solid white; border-radius: 50%; padding: 0; display: grid; place-items: center; color: white; background: #f5a000; box-shadow: 0 2px 6px rgba(107, 69, 0, .28); cursor: pointer; pointer-events: auto; }
 .annotation-marker svg { width: 12px; height: 12px; stroke-width: 2.2; }

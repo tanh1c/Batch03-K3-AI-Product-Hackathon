@@ -21,6 +21,12 @@ app.use("/vendor", express.static(path.join(__dirname, "node_modules/pdfjs-dist/
 app.get("/geometry.mjs", (_request, response) => {
   response.sendFile(path.join(__dirname, "src/geometry.mjs"));
 });
+app.get("/selection-geometry.mjs", (_request, response) => {
+  response.sendFile(path.join(__dirname, "src/selection-geometry.mjs"));
+});
+app.get("/snip.mjs", (_request, response) => {
+  response.sendFile(path.join(__dirname, "src/snip.mjs"));
+});
 app.get("/favicon.ico", (_request, response) => response.sendStatus(204));
 app.use(express.static(path.join(__dirname, "public")));
 
