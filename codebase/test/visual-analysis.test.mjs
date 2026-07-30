@@ -41,6 +41,7 @@ test("builds a compatible multimodal chat request", () => {
   assert.equal(body.messages[1].content[0].image_url.url, "data:image/png;base64,aGVsbG8=");
   assert.equal(body.response_format.type, "json_schema");
   assert.equal(body.response_format.json_schema.strict, true);
+  assert.match(body.messages[1].content[1].text, /tiếng Việt/);
 });
 
 test("builds a direct Gemini multimodal structured-output request", () => {

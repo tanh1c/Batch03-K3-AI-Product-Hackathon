@@ -1,0 +1,15 @@
+{
+  "timestamp": "2026-07-30T09:03:36.859Z",
+  "provider": "openrouter",
+  "model": "openai/o4-mini",
+  "runId": "b4ab6d84b659eb78",
+  "caseCount": 20,
+  "questionSetHash": "ff8d666c98d520b894fc6b729774318260336061108a46714cdaea924dde8bf9",
+  "imageBytes": 336717,
+  "routes": {
+    "INSUFFICIENT": 4,
+    "NEED_WIDER_REGION": 4,
+    "VISUAL_GROUNDED": 10,
+    "NEED_BETTER_IMAGE": 2
+  }
+}

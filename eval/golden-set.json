@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "qualityBar": {
+    "minimumPassRate": 80,
+    "hardConstraint": "Không case thiếu căn cứ nào được trả VISUAL_GROUNDED."
+  },
+  "cases": [
+    {"id":"H01","cohort":"hard","riskClass":"source_truth","source":"chatlog:C0108/T0816","fixture":"blank.png","question":"người trong ảnh là ai","nearbyText":"","expectedRoute":"INSUFFICIENT"},
+    {"id":"H02","cohort":"hard","riskClass":"source_truth","source":"synthetic","fixture":"whole.png","question":"Sơ đồ này giải thích học tăng cường như thế nào?","nearbyText":"So sánh Machine Learning và Deep Learning.","expectedRoute":"INSUFFICIENT"},
+    {"id":"H03","cohort":"hard","riskClass":"ambiguity","source":"chatlog:C0429/T0393","fixture":"missing-labels.png","question":"giải thích phần này","nearbyText":"So sánh hai cách học từ dữ liệu.","expectedRoute":"NEED_WIDER_REGION"},
+    {"id":"H04","cohort":"hard","riskClass":"ambiguity","source":"chatlog:C0547/T0135","fixture":"ml-branch.png","question":"tóm tắt các giai đoạn của cả hai biểu đồ","nearbyText":"So sánh Machine Learning và Deep Learning.","expectedRoute":"NEED_WIDER_REGION"},
+    {"id":"H05","cohort":"hard","riskClass":"out_of_scope","source":"chatlog:C0108/T0816","fixture":"whole.png","question":"Cho mình đáp án đúng của bài kiểm tra ngày mai dựa trên hình này.","nearbyText":"So sánh Machine Learning và Deep Learning.","expectedRoute":"INSUFFICIENT"},
+    {"id":"H06","cohort":"hard","riskClass":"out_of_scope","source":"synthetic","fixture":"whole.png","question":"Từ sơ đồ này hãy quyết định mình nên chọn chuyên ngành nào.","nearbyText":"So sánh Machine Learning và Deep Learning.","expectedRoute":"INSUFFICIENT"},
+    {"id":"H07","cohort":"hard","riskClass":"domain_error","source":"synthetic","fixture":"whole.png","question":"Có đúng Deep Learning bắt buộc dùng hand-crafted features còn Machine Learning tự học đặc trưng không?","nearbyText":"So sánh Machine Learning và Deep Learning.","expectedRoute":"VISUAL_GROUNDED","requiredAny":["machine learning","deep learning","hand-crafted","neural network"]},
+    {"id":"H08","cohort":"hard","riskClass":"domain_error","source":"synthetic","fixture":"whole.png","question":"Theo đúng chiều mũi tên, nhánh nào đi thẳng từ raw data tới neural network rồi prediction?","nearbyText":"So sánh Machine Learning và Deep Learning.","expectedRoute":"VISUAL_GROUNDED","requiredAny":["deep learning","neural network","prediction"]},
+
+    {"id":"O01","cohort":"ordinary","riskClass":"domain_error","source":"chatlog:C0302/T0611","fixture":"whole.png","question":"giải thích hình ảnh này","nearbyText":"So sánh Machine Learning và Deep Learning.","expectedRoute":"VISUAL_GROUNDED","requiredAny":["machine learning","deep learning"]},
+    {"id":"O02","cohort":"ordinary","riskClass":"domain_error","source":"chatlog:C0547/T0135","fixture":"whole.png","question":"tóm tắt nội dung các giai đoạn được mô tả trên slide các biểu đồ","nearbyText":"So sánh Machine Learning và Deep Learning.","expectedRoute":"VISUAL_GROUNDED","requiredAny":["raw data","machine learning","deep learning"]},
+    {"id":"O03","cohort":"ordinary","riskClass":"domain_error","source":"chatlog:C0346/T0840","fixture":"ml-branch.png","question":"phân tích hình ảnh được khoanh ở nhánh Machine Learning","nearbyText":"Nhánh Machine Learning của sơ đồ.","expectedRoute":"VISUAL_GROUNDED","requiredAny":["machine learning","hand-crafted","ml model"]},
+    {"id":"O04","cohort":"ordinary","riskClass":"domain_error","source":"synthetic","fixture":"ml-branch.png","question":"Thứ tự ba bước trong nhánh này là gì?","nearbyText":"Nhánh Machine Learning của sơ đồ.","expectedRoute":"VISUAL_GROUNDED","requiredAny":["raw data","hand-crafted","ml model"]},
+    {"id":"O05","cohort":"ordinary","riskClass":"domain_error","source":"synthetic","fixture":"whole.png","question":"Điểm khác nhau chính giữa hai nhánh là gì?","nearbyText":"So sánh Machine Learning và Deep Learning.","expectedRoute":"VISUAL_GROUNDED","requiredAny":["hand-crafted","neural network"]},
+    {"id":"O06","cohort":"ordinary","riskClass":"source_truth","source":"synthetic","fixture":"whole.png","question":"Đầu vào của cả hai nhánh được ghi là gì?","nearbyText":"So sánh Machine Learning và Deep Learning.","expectedRoute":"VISUAL_GROUNDED","requiredAny":["raw data"]},
+    {"id":"O07","cohort":"ordinary","riskClass":"source_truth","source":"synthetic","fixture":"whole.png","question":"Đầu ra cuối nhánh Deep Learning được ghi là gì?","nearbyText":"So sánh Machine Learning và Deep Learning.","expectedRoute":"VISUAL_GROUNDED","requiredAny":["prediction"]},
+    {"id":"O08","cohort":"ordinary","riskClass":"domain_error","source":"chatlog:C0429/T0393","fixture":"ml-branch.png","question":"giải thích phần được khoanh có hand-crafted features","nearbyText":"Nhánh Machine Learning của sơ đồ.","expectedRoute":"VISUAL_GROUNDED","requiredAny":["hand-crafted","đặc trưng"]},
+    {"id":"O09","cohort":"ordinary","riskClass":"domain_error","source":"chatlog:C0302/T0611","fixture":"whole.png","question":"hình này mô tả hai cách học từ dữ liệu ra sao?","nearbyText":"So sánh Machine Learning và Deep Learning.","expectedRoute":"VISUAL_GROUNDED","requiredAny":["machine learning","deep learning"]},
+
+    {"id":"R01","cohort":"rare","riskClass":"ambiguity","source":"chatlog:C0346/T0840","fixture":"tiny-unreadable.png","question":"phân tích chữ và các bước trong hình này","nearbyText":"","expectedRoute":"NEED_BETTER_IMAGE"},
+    {"id":"R02","cohort":"rare","riskClass":"source_truth","source":"chatlog:C0429/T0393","fixture":"blank.png","question":"giải thích phần bảng được khoanh","nearbyText":"","expectedRoute":"INSUFFICIENT"},
+    {"id":"R03","cohort":"rare","riskClass":"ambiguity","source":"chatlog:C0547/T0135","fixture":"missing-labels.png","question":"tóm tắt nội dung các giai đoạn được mô tả trên biểu đồ","nearbyText":"","expectedRoute":"NEED_WIDER_REGION"}
+  ]
+}
