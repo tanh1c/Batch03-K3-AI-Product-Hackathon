@@ -27,6 +27,9 @@ app.get("/selection-geometry.mjs", (_request, response) => {
 app.get("/snip.mjs", (_request, response) => {
   response.sendFile(path.join(__dirname, "src/snip.mjs"));
 });
+app.get("/pdf-context.mjs", (_request, response) => {
+  response.sendFile(path.join(__dirname, "public/pdf-context.mjs"));
+});
 app.get("/favicon.ico", (_request, response) => response.sendStatus(204));
 app.use(express.static(path.join(__dirname, "public")));
 
