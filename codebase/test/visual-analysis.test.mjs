@@ -44,6 +44,24 @@ test("builds a compatible multimodal chat request", () => {
   assert.match(body.messages[1].content[1].text, /tiếng Việt/);
 });
 
+test("adds bounded source and crop-only OCR instructions for Direction C", () => {
+  const body = buildOpenAIBody({
+    ...input,
+    nearbyText: "",
+    selection: {
+      source: "circle",
+      bounds: { x: 0.1, y: 0.2, width: 0.3, height: 0.4 },
+      label: "Vùng khoanh",
+      needsOcr: true,
+    },
+  }, "gpt-5.6-terra");
+  const instruction = body.input[0].content[1].text;
+  assert.match(instruction, /Vùng khoanh/);
+  assert.match(instruction, /circle/);
+  assert.match(instruction, /đọc chữ nhìn thấy trong chính crop/i);
+  assert.match(instruction, /không.*toàn bộ trang/i);
+});
+
 test("builds a direct Gemini multimodal structured-output request", () => {
   const body = buildGeminiBody(input);
   assert.equal(body.contents[0].parts[0].inlineData.mimeType, "image/png");

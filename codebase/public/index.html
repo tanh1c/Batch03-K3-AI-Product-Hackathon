@@ -6,6 +6,7 @@
     <meta name="description" content="Prototype trình đọc tài liệu và trợ giảng AI theo ngữ cảnh." />
     <title>VLearn Reader</title>
     <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/selection-overlay.css" />
   </head>
   <body>
     <div id="app" class="app-shell">
@@ -68,8 +69,9 @@
             <div class="more-tools-panel hidden" id="moreToolsPanel">
               <div class="extended-mode-tools">
                 <button class="extended-tool-button" data-mode="circle"><span data-icon="circle"></span>Khoanh</button>
+                <button class="extended-tool-button" data-mode="snip"><span data-icon="cursor"></span>Cắt vùng</button>
+                <button class="extended-tool-button" data-mode="detect"><span data-icon="image"></span>Vùng gợi ý</button>
                 <button class="extended-tool-button" data-tool-action="text"><span data-icon="type"></span>Text</button>
-                <button class="extended-tool-button" data-tool-action="image"><span data-icon="image"></span>Ảnh</button>
                 <button class="extended-tool-button eraser-tool" data-mode="eraser"><span data-icon="eraser"></span>Tẩy</button>
               </div>
               <div class="drawing-options hidden" id="drawingOptions">
@@ -164,7 +166,7 @@
             <strong>Kéo thả PDF vào đây</strong>
             <span>hoặc bấm để chọn file · tối đa 50 MB</span>
           </label>
-          <div class="privacy-note"><span data-icon="shield"></span><span>Chỉ văn bản liên quan được gửi tới Tutor khi bạn chủ động đặt câu hỏi.</span></div>
+          <div class="privacy-note"><span data-icon="shield"></span><span>Chỉ vùng cắt và văn bản giao với vùng đó được gửi tới Tutor khi bạn chủ động đặt câu hỏi.</span></div>
         </section>
       </div>
 

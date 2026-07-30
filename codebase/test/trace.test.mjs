@@ -12,6 +12,13 @@ test("stores only visual-call metadata and a question hash", async () => {
     imageData: "aGVsbG8=",
     question: "raw private question",
     slideNumber: 18,
+    nearbyText: "",
+    selection: {
+      source: "snip",
+      bounds: { x: 0.1, y: 0.2, width: 0.3, height: 0.4 },
+      label: "Vùng cắt",
+      needsOcr: true,
+    },
   };
 
   await recordTrace({
@@ -30,7 +37,11 @@ test("stores only visual-call metadata and a question hash", async () => {
   assert.equal(entry.imageBytes, 5);
   assert.equal(entry.route, "VISUAL_GROUNDED");
   assert.equal(entry.slideNumber, 18);
+  assert.equal(entry.selectionSource, "snip");
+  assert.equal(entry.selectedAreaRatio, 0.12);
+  assert.equal(entry.hasTextLayer, false);
   assert.equal(raw.includes(input.question), false);
   assert.equal(raw.includes(input.imageData), false);
+  assert.equal(raw.includes(input.selection.label), false);
   assert.equal(raw.includes("secret"), false);
 });

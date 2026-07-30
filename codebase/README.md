@@ -15,13 +15,19 @@ Prototype trình đọc PDF và trợ giảng AI theo ngữ cảnh, tái hiện 
 - Chế độ sáng/tối và lưu ghi chú, annotation, theme bằng `localStorage`.
 - Hỗ trợ OpenAI, OpenRouter, Google Gemini trực tiếp và local 9router; Tutor demo hoạt động khi provider đã chọn chưa được cấu hình.
 - Ở slide mẫu có sơ đồ, chọn nhánh hoặc toàn bộ vùng hình để gửi câu hỏi tới Visual Tutor; câu trả lời hiển thị provenance theo slide và hướng dẫn chọn vùng rộng hơn khi chưa đủ ngữ cảnh.
+- Trên PDF do người học tải lên, có thể dùng Cắt vùng (Snip), Khoanh hoặc Vùng gợi ý để tạo một selection chuẩn hóa theo trang; selection vẫn bám đúng nội dung khi đổi zoom.
+- Vùng gợi ý được phát hiện cục bộ từ text layer và toán tử PDF, không gọi AI cho tới khi người học chủ động chọn vùng và gửi câu hỏi.
+- Crop đúng vùng của đúng trang được ghép với phần text layer giao vùng. Nếu không có text layer, request được đánh dấu `needsOcr` để mô hình đa phương thức chỉ đọc crop đã chọn.
 - Visual Tutor gửi ảnh crop PNG tối thiểu tới server; trace chỉ lưu metadata đã băm, không lưu câu hỏi gốc hoặc ảnh.
 
 ### Visual Tutor
 
 Visual Tutor có hợp đồng bốn route: `VISUAL_GROUNDED`, `NEED_WIDER_REGION`, `NEED_BETTER_IMAGE`, `INSUFFICIENT`. Chỉ route grounded có `answer`; các route phục hồi phải có `reason` và `recovery_action` cụ thể. Mô hình được cấu hình cho Visual Tutor phải hỗ trợ ảnh và structured JSON output.
 
-Luồng MVP hiện hỗ trợ chọn vùng bằng nút trên slide demo. Tự động quét toàn bộ slide để phát hiện vùng ảnh chưa nằm trong phạm vi MVP.
+Direction B trên slide demo và Direction C trên PDF thật dùng chung endpoint
+`/api/analyze` và cùng hợp đồng bốn route. Detector Direction C là heuristic cục
+bộ, không phải mô hình segmentation và không được mô tả là phát hiện hoàn hảo;
+Snip và Circle luôn là đường lui khi gợi ý thiếu hoặc sai.
 
 Credentials chỉ được đọc ở server và không xuất hiện trong trace hoặc browser. VLearn không tự fallback sang provider khác; nếu dùng combo model, fallback bên trong 9router thuộc quyền kiểm soát của gateway.
 
@@ -90,7 +96,7 @@ Khởi động lại bằng `npm start`. Credentials chỉ tồn tại ở serve
 
 ## Phạm vi prototype
 
-- PDF dạng ảnh scan vẫn hiển thị được nhưng Tutor không đọc được chữ vì chưa tích hợp OCR.
+- PDF dạng ảnh scan vẫn hiển thị được. Tutor có thể đọc crop người học chủ động chọn bằng mô hình đa phương thức khi provider hỗ trợ ảnh; ứng dụng không OCR hoặc tải toàn bộ trang tự động.
 - Annotation được lưu trong trình duyệt hiện tại, chưa đồng bộ tài khoản hoặc cơ sở dữ liệu.
 - File PDF không được giữ lại sau khi refresh; người dùng cần chọn lại file. Ghi chú của file vẫn còn nếu tải lại đúng file đó.
 - Chưa có đăng nhập, phân quyền giáo viên hoặc quản trị học liệu.
@@ -104,3 +110,13 @@ npm test
 ```
 
 Endpoint kiểm tra server: `GET /api/health`. Visual endpoint: `POST /api/analyze`; endpoint trả `503` khi provider đã chọn chưa được cấu hình.
+
+Golden set Direction C gồm 12 case riêng và không ghi đè kết quả Direction B:
+
+```powershell
+cd ..
+node --env-file-if-exists=codebase/.env eval/run-direction-c-eval.mjs
+```
+
+Kết quả được ghi vào `eval/direction-c-run-results.json`; trace lượt chạy chỉ
+chứa metadata, hash và phân bố route.

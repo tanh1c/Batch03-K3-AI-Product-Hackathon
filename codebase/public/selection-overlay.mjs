@@ -80,6 +80,81 @@ export function createSelectionOverlay({
   };
 }
 
+export function createSelectionIndicator({
+  container,
+  documentRef = globalThis.document,
+}) {
+  if (!container || typeof container.appendChild !== "function") {
+    throw new TypeError("container must be a DOM element");
+  }
+  if (!documentRef || typeof documentRef.createElement !== "function") {
+    throw new TypeError("documentRef must provide createElement");
+  }
+
+  const root = documentRef.createElement("div");
+  root.classList.add("selection-indicator");
+  root.setAttribute("aria-hidden", "true");
+  const selected = documentRef.createElement("div");
+  selected.classList.add("selection-indicator__selected");
+  selected.hidden = true;
+  const preview = documentRef.createElement("div");
+  preview.classList.add("selection-indicator__preview");
+  preview.hidden = true;
+  root.appendChild(selected);
+  root.appendChild(preview);
+  container.appendChild(root);
+  let destroyed = false;
+
+  function assertActive() {
+    if (destroyed) throw new Error("Selection indicator has been destroyed");
+  }
+
+  function showSelection(selection) {
+    assertActive();
+    if (!selection || !isNormalizedBounds(selection.bounds)) {
+      throw new TypeError("selection must provide normalized bounds");
+    }
+    positionElement(selected, selection.bounds);
+    selected.setAttribute("data-selection-source", selection.source || "");
+    selected.setAttribute("title", selection.label || "Vùng đã chọn");
+    selected.hidden = false;
+  }
+
+  function showPreview(bounds) {
+    assertActive();
+    if (bounds === null) {
+      preview.hidden = true;
+      return;
+    }
+    if (!isNormalizedBounds(bounds)) {
+      throw new TypeError("preview must provide normalized bounds");
+    }
+    positionElement(preview, bounds);
+    preview.hidden = false;
+  }
+
+  function clear() {
+    assertActive();
+    selected.hidden = true;
+    preview.hidden = true;
+    selected.setAttribute("data-selection-source", "");
+  }
+
+  function destroy() {
+    if (destroyed) return;
+    root.remove();
+    destroyed = true;
+  }
+
+  return {
+    element: root,
+    showSelection,
+    showPreview,
+    clear,
+    destroy,
+  };
+}
+
 function createCandidateButton({
   candidate,
   documentRef,
@@ -176,4 +251,11 @@ function cloneCandidate(candidate) {
 
 function toPercentage(value) {
   return `${Number((value * 100).toFixed(6))}%`;
+}
+
+function positionElement(element, bounds) {
+  element.style.left = toPercentage(bounds.x);
+  element.style.top = toPercentage(bounds.y);
+  element.style.width = toPercentage(bounds.width);
+  element.style.height = toPercentage(bounds.height);
 }

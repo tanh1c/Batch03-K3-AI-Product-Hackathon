@@ -1,0 +1,205 @@
+{
+  "name": "Direction C bounded PDF selection golden set",
+  "version": 1,
+  "qualityBar": {
+    "minimumPassCount": 10,
+    "maximumUnsupportedGrounded": 0,
+    "maximumWrongPageCrops": 0
+  },
+  "cases": [
+    {
+      "id": "C01",
+      "cohort": "mixed",
+      "fixture": "whole.png",
+      "pageNumber": 2,
+      "question": "Giải thích sự khác nhau giữa hai nhánh trong sơ đồ.",
+      "nearbyText": "Machine Learning sử dụng đặc trưng được thiết kế trước; Deep Learning tự học đặc trưng.",
+      "selection": {
+        "source": "detected-image",
+        "bounds": { "x": 0.05, "y": 0.15, "width": 0.9, "height": 0.7 },
+        "label": "Vùng hình 1",
+        "needsOcr": false
+      },
+      "expectedRoute": "VISUAL_GROUNDED",
+      "requiredAny": ["machine learning", "deep learning", "đặc trưng"]
+    },
+    {
+      "id": "C02",
+      "cohort": "mixed",
+      "fixture": "ml-branch.png",
+      "pageNumber": 3,
+      "question": "Nhánh Machine Learning xử lý đặc trưng như thế nào?",
+      "nearbyText": "Machine Learning: Feature extraction, Classification.",
+      "selection": {
+        "source": "snip",
+        "bounds": { "x": 0.08, "y": 0.18, "width": 0.42, "height": 0.66 },
+        "label": "Vùng cắt",
+        "needsOcr": false
+      },
+      "expectedRoute": "VISUAL_GROUNDED",
+      "requiredAny": ["đặc trưng", "feature"]
+    },
+    {
+      "id": "C03",
+      "cohort": "mixed",
+      "fixture": "whole.png",
+      "pageNumber": 4,
+      "question": "Tóm tắt nội dung khối chữ và hình được chọn.",
+      "nearbyText": "Sơ đồ so sánh Machine Learning và Deep Learning.",
+      "selection": {
+        "source": "detected-text",
+        "bounds": { "x": 0.08, "y": 0.05, "width": 0.84, "height": 0.85 },
+        "label": "Vùng chữ 1",
+        "needsOcr": false
+      },
+      "expectedRoute": "VISUAL_GROUNDED",
+      "requiredAny": ["machine learning", "deep learning", "so sánh"]
+    },
+    {
+      "id": "C04",
+      "cohort": "mixed",
+      "fixture": "whole.png",
+      "pageNumber": 5,
+      "question": "Luồng nào tự học đặc trưng từ dữ liệu?",
+      "nearbyText": "Deep Learning tự học biểu diễn đặc trưng.",
+      "selection": {
+        "source": "circle",
+        "bounds": { "x": 0.5, "y": 0.15, "width": 0.46, "height": 0.72 },
+        "label": "Vùng khoanh",
+        "needsOcr": false
+      },
+      "expectedRoute": "VISUAL_GROUNDED",
+      "requiredAny": ["deep learning", "đặc trưng"]
+    },
+    {
+      "id": "C05",
+      "cohort": "scanned",
+      "fixture": "whole.png",
+      "pageNumber": 6,
+      "question": "Đọc chữ trong vùng scan và giải thích sơ đồ.",
+      "nearbyText": "",
+      "selection": {
+        "source": "snip",
+        "bounds": { "x": 0.04, "y": 0.12, "width": 0.92, "height": 0.76 },
+        "label": "Vùng cắt",
+        "needsOcr": true
+      },
+      "expectedRoute": "VISUAL_GROUNDED",
+      "requiredAny": ["machine learning", "deep learning"]
+    },
+    {
+      "id": "C06",
+      "cohort": "scanned",
+      "fixture": "ml-branch.png",
+      "pageNumber": 7,
+      "question": "Đọc và giải thích nhánh đang nhìn thấy.",
+      "nearbyText": "",
+      "selection": {
+        "source": "circle",
+        "bounds": { "x": 0.05, "y": 0.1, "width": 0.9, "height": 0.8 },
+        "label": "Vùng khoanh",
+        "needsOcr": true
+      },
+      "expectedRoute": "VISUAL_GROUNDED",
+      "requiredAny": ["machine learning", "feature", "đặc trưng"]
+    },
+    {
+      "id": "C07",
+      "cohort": "scanned",
+      "fixture": "tiny-unreadable.png",
+      "pageNumber": 8,
+      "question": "Đọc toàn bộ nhãn trong ảnh scan này.",
+      "nearbyText": "",
+      "selection": {
+        "source": "snip",
+        "bounds": { "x": 0.2, "y": 0.2, "width": 0.3, "height": 0.3 },
+        "label": "Vùng cắt",
+        "needsOcr": true
+      },
+      "expectedRoute": "NEED_BETTER_IMAGE",
+      "requiredAny": []
+    },
+    {
+      "id": "C08",
+      "cohort": "recovery",
+      "fixture": "missing-labels.png",
+      "pageNumber": 9,
+      "question": "So sánh hai nhánh trong hình.",
+      "nearbyText": "",
+      "selection": {
+        "source": "detected-image",
+        "bounds": { "x": 0.18, "y": 0.2, "width": 0.58, "height": 0.55 },
+        "label": "Vùng hình 1",
+        "needsOcr": true
+      },
+      "expectedRoute": "NEED_WIDER_REGION",
+      "requiredAny": []
+    },
+    {
+      "id": "C09",
+      "cohort": "recovery",
+      "fixture": "tiny-unreadable.png",
+      "pageNumber": 10,
+      "question": "Giải thích công thức trong vùng này.",
+      "nearbyText": "",
+      "selection": {
+        "source": "circle",
+        "bounds": { "x": 0.35, "y": 0.35, "width": 0.2, "height": 0.2 },
+        "label": "Vùng khoanh",
+        "needsOcr": true
+      },
+      "expectedRoute": "NEED_BETTER_IMAGE",
+      "requiredAny": []
+    },
+    {
+      "id": "C10",
+      "cohort": "recovery",
+      "fixture": "blank.png",
+      "pageNumber": 11,
+      "question": "Theo hình này, hạn nộp bài là ngày nào?",
+      "nearbyText": "",
+      "selection": {
+        "source": "snip",
+        "bounds": { "x": 0.1, "y": 0.1, "width": 0.8, "height": 0.8 },
+        "label": "Vùng cắt",
+        "needsOcr": true
+      },
+      "expectedRoute": "INSUFFICIENT",
+      "requiredAny": []
+    },
+    {
+      "id": "C11",
+      "cohort": "detectorFallback",
+      "fixture": "whole.png",
+      "pageNumber": 12,
+      "question": "Detector không tìm thấy vùng; hãy giải thích vùng mình cắt thủ công.",
+      "nearbyText": "Machine Learning và Deep Learning.",
+      "selection": {
+        "source": "snip",
+        "bounds": { "x": 0.04, "y": 0.12, "width": 0.92, "height": 0.76 },
+        "label": "Vùng cắt",
+        "needsOcr": false
+      },
+      "manualFallback": "snip",
+      "expectedRoute": "VISUAL_GROUNDED",
+      "requiredAny": ["machine learning", "deep learning"]
+    },
+    {
+      "id": "C12",
+      "cohort": "detectorFallback",
+      "fixture": "missing-labels.png",
+      "pageNumber": 13,
+      "question": "Vùng gợi ý bị sai; vùng khoanh này đã đủ để so sánh chưa?",
+      "nearbyText": "",
+      "selection": {
+        "source": "circle",
+        "bounds": { "x": 0.2, "y": 0.2, "width": 0.5, "height": 0.5 },
+        "label": "Vùng khoanh",
+        "needsOcr": true
+      },
+      "manualFallback": "circle",
+      "expectedRoute": "NEED_WIDER_REGION",
+      "requiredAny": []
+    }
+  ]
+}

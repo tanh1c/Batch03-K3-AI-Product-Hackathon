@@ -44,6 +44,17 @@ const validInput = {
   nearbyText: "Machine Learning và Deep Learning",
 };
 
+const validDirectionCInput = {
+  ...validInput,
+  nearbyText: "",
+  selection: {
+    source: "snip",
+    bounds: { x: 0.1, y: 0.2, width: 0.3, height: 0.4 },
+    label: "Vùng cắt",
+    needsOcr: true,
+  },
+};
+
 test("accepts a valid visual request and records one redacted trace", async (t) => {
   const calls = [];
   const traces = [];
@@ -92,6 +103,51 @@ test("returns 503 when the selected provider is not configured", async (t) => {
   });
 
   assert.equal(response.status, 503);
+  assert.equal(calls, 0);
+});
+
+test("accepts bounded Direction C metadata and rejects unsafe metadata", async (t) => {
+  const calls = [];
+  const { server, baseUrl } = await startServer({
+    analyze: async (input) => { calls.push(input); return grounded; },
+  });
+  t.after(() => server.close());
+
+  const response = await fetch(`${baseUrl}/api/analyze`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(validDirectionCInput),
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(calls[0].selection, validDirectionCInput.selection);
+
+  const unsafe = await fetch(`${baseUrl}/api/analyze`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      ...validDirectionCInput,
+      selection: { ...validDirectionCInput.selection, rawText: "private" },
+    }),
+  });
+  assert.equal(unsafe.status, 400);
+  assert.equal(calls.length, 1);
+});
+
+test("requires OCR metadata to agree with bounded text availability", async (t) => {
+  let calls = 0;
+  const { server, baseUrl } = await startServer({
+    analyze: async () => { calls += 1; return grounded; },
+  });
+  t.after(() => server.close());
+  const response = await fetch(`${baseUrl}/api/analyze`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      ...validDirectionCInput,
+      nearbyText: "Có text layer",
+    }),
+  });
+  assert.equal(response.status, 400);
   assert.equal(calls, 0);
 });
 

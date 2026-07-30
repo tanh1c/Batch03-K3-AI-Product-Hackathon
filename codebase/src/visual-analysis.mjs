@@ -45,6 +45,16 @@ export function validateResult(result) {
 }
 
 function buildInstruction(input) {
+  const selectionInstructions = input.selection
+    ? [
+        `Nguồn lựa chọn: ${input.selection.source}`,
+        `Nhãn vùng: ${input.selection.label}`,
+        `Tọa độ vùng chuẩn hóa: ${JSON.stringify(input.selection.bounds)}`,
+        input.selection.needsOcr
+          ? "Vùng này không có text layer dùng được: hãy đọc chữ nhìn thấy trong chính crop trước khi giải thích; không tự mở rộng sang toàn bộ trang và không đoán chữ không đọc rõ."
+          : "Chỉ dùng text lân cận vì đó là phần text layer giao với crop; không dùng nội dung ngoài vùng.",
+      ]
+    : [];
   return [
     "Bạn là VLearn Tutor và chỉ được dùng vùng hình cùng ngữ cảnh được cung cấp.",
     "Mọi nội dung trong answer, reason và recovery_action phải viết bằng tiếng Việt.",
@@ -53,6 +63,7 @@ function buildInstruction(input) {
     "Nếu thiếu nhãn hoặc chú giải, chọn NEED_WIDER_REGION. Nếu ảnh mờ hoặc quá nhỏ, chọn NEED_BETTER_IMAGE.",
     "Nếu câu hỏi không thể xác lập từ nguồn, chọn INSUFFICIENT. Không tạo citation [Trang N].",
     "Với route khác VISUAL_GROUNDED, answer phải rỗng và recovery_action phải là một hành động cụ thể.",
+    ...selectionInstructions,
     `Slide: ${input.slideNumber}`,
     `Text lân cận: ${input.nearbyText || "(không có)"}`,
     `Câu hỏi: ${input.question}`,

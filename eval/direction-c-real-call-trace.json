@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-30T15:27:26.455Z",
+  "provider": "gemini",
+  "model": "gemini-3.5-flash",
+  "runId": "621e6aa854e582d2",
+  "caseCount": 12,
+  "questionSetHash": "0c2c551cf8a289ca7dc7eebf1b00d707346e352b1cbd3933d467a1b957f04772",
+  "imageBytes": 159219,
+  "routes": {
+    "ERROR": 12
+  }
+}

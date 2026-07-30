@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { createSelectionOverlay } from "../public/selection-overlay.mjs";
+import {
+  createSelectionIndicator,
+  createSelectionOverlay,
+} from "../public/selection-overlay.mjs";
 import { selectionCandidates } from "./fixtures/selection-candidates.mjs";
 
 class FakeClassList {
@@ -192,10 +195,44 @@ test("destroy removes the package-owned DOM and prevents reuse", () => {
   assert.doesNotThrow(() => overlay.destroy());
 });
 
+test("renders current selection and transient Snip preview without pointer events", () => {
+  const documentRef = new FakeDocument();
+  const container = documentRef.createElement("div");
+  const indicator = createSelectionIndicator({ container, documentRef });
+  const selection = {
+    pageNumber: 2,
+    source: "snip",
+    bounds: { x: 0.1, y: 0.2, width: 0.3, height: 0.4 },
+    label: "Vùng cắt",
+    text: "",
+    needsOcr: false,
+  };
+
+  indicator.showSelection(selection);
+  assert.equal(indicator.element.children[0].hidden, false);
+  assert.deepEqual(indicator.element.children[0].style, {
+    left: "10%",
+    top: "20%",
+    width: "30%",
+    height: "40%",
+  });
+  assert.equal(indicator.element.children[0].getAttribute("data-selection-source"), "snip");
+
+  indicator.showPreview({ x: 0.4, y: 0.5, width: 0.2, height: 0.1 });
+  assert.equal(indicator.element.children[1].hidden, false);
+  indicator.showPreview(null);
+  assert.equal(indicator.element.children[1].hidden, true);
+  indicator.clear();
+  assert.equal(indicator.element.children[0].hidden, true);
+  indicator.destroy();
+  assert.equal(container.children.length, 0);
+});
+
 test("scoped stylesheet protects PDF interactions and keyboard focus", async () => {
   const css = await readFile(new URL("../public/selection-overlay.css", import.meta.url), "utf8");
   assert.match(css, /\.selection-overlay\s*\{[^}]*pointer-events:\s*none/s);
   assert.match(css, /\.selection-overlay__candidate\s*\{[^}]*pointer-events:\s*auto/s);
   assert.match(css, /\.selection-overlay__candidate:focus-visible/);
+  assert.match(css, /\.selection-indicator\s*\{[^}]*pointer-events:\s*none/s);
   assert.doesNotMatch(css, /(^|\n)\s*(button|canvas|\.page-shell)\s*\{/);
 });

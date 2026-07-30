@@ -11,6 +11,15 @@ export async function recordTrace({ file, provider, model, input, result, now = 
     questionHash: createHash("sha256").update(input.question).digest("hex"),
     imageBytes: Buffer.byteLength(input.imageData, "base64"),
     route: result.route,
+    ...(input.selection
+      ? {
+          selectionSource: input.selection.source,
+          selectedAreaRatio: Number((
+            input.selection.bounds.width * input.selection.bounds.height
+          ).toFixed(6)),
+          hasTextLayer: !input.selection.needsOcr,
+        }
+      : {}),
   };
   await mkdir(path.dirname(file), { recursive: true });
   await appendFile(file, `${JSON.stringify(entry)}\n`, "utf8");

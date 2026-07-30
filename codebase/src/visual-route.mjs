@@ -1,3 +1,5 @@
+import { validateSelectionMetadata } from "./visual-request.mjs";
+
 function validateInput(body) {
   if (!body || typeof body !== "object" || Array.isArray(body)) return "Dữ liệu hình ảnh không hợp lệ.";
   if (typeof body.imageData !== "string" || !body.imageData || !/^[A-Za-z0-9+/]+={0,2}$/.test(body.imageData)) return "Vùng hình không hợp lệ.";
@@ -5,6 +7,16 @@ function validateInput(body) {
   if (typeof body.question !== "string" || !body.question.trim() || body.question.length > 1000) return "Câu hỏi phải có từ 1 đến 1000 ký tự.";
   if (!Number.isInteger(body.slideNumber) || body.slideNumber < 1 || body.slideNumber > 9999) return "Số trang không hợp lệ.";
   if (typeof body.nearbyText !== "string" || body.nearbyText.length > 4000) return "Ngữ cảnh văn bản không hợp lệ.";
+  if (body.selection !== undefined) {
+    try {
+      const selection = validateSelectionMetadata(body.selection);
+      if (selection.needsOcr !== !body.nearbyText.trim()) {
+        return "Trạng thái OCR không khớp với ngữ cảnh vùng chọn.";
+      }
+    } catch {
+      return "Metadata vùng chọn không hợp lệ.";
+    }
+  }
   return "";
 }
 
@@ -27,6 +39,9 @@ export function registerVisualRoute(app, {
         question: request.body.question.trim(),
         slideNumber: request.body.slideNumber,
         nearbyText: request.body.nearbyText,
+        ...(request.body.selection === undefined
+          ? {}
+          : { selection: validateSelectionMetadata(request.body.selection) }),
       };
       const result = await analyze(input, { provider });
       await recordTrace({ file: traceFile, provider: provider.name, model: provider.model, input, result });

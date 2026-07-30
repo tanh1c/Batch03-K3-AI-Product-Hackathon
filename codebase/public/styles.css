@@ -129,6 +129,8 @@ svg.icon { width: 19px; height: 19px; stroke: currentColor; stroke-width: 1.9; s
 .extended-tool-button { height: 38px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: #53667d; display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 750; cursor: pointer; white-space: nowrap; }
 .extended-tool-button:hover { border-color: #99bad2; background: var(--blue-soft); }
 .extended-tool-button.active { color: #9a4e00; border-color: #f3bc31; background: #fff9e7; }
+.extended-tool-button[data-mode="snip"].active,
+.extended-tool-button[data-mode="detect"].active { color: var(--blue); border-color: #6ca8d0; background: var(--blue-soft); }
 .extended-tool-button.eraser-tool.active { color: #d9254f; border-color: #f1a0b4; background: #fff0f4; }
 .extended-tool-button svg { width: 16px; height: 16px; }
 .drawing-options { flex: 1; min-width: 0; }
@@ -160,6 +162,8 @@ svg.icon { width: 19px; height: 19px; stroke: currentColor; stroke-width: 1.9; s
 .page-shell[data-mode="pen"] .annotation-canvas { cursor: crosshair; }
 .page-shell[data-mode="highlight"] .page-paper, .page-shell[data-mode="highlight"] .pdf-text-layer :is(span, br) { cursor: text; }
 .page-shell[data-mode="circle"] .annotation-canvas { cursor: crosshair; }
+.page-shell[data-mode="snip"] .annotation-canvas { cursor: crosshair; pointer-events: auto; }
+.page-shell[data-mode="detect"] .annotation-canvas { pointer-events: none; }
 .page-shell[data-mode="eraser"] .annotation-canvas { cursor: cell; }
 .annotation-markers { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
 .annotation-marker { position: absolute; transform: translate(-50%, -50%); width: 23px; height: 23px; border: 2px solid white; border-radius: 50%; padding: 0; display: grid; place-items: center; color: white; background: #f5a000; box-shadow: 0 2px 6px rgba(107, 69, 0, .28); cursor: pointer; pointer-events: auto; }
