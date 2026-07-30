@@ -40,6 +40,10 @@ const ICONS = {
   cursor: '<path d="m5 3 13 8-6 2-3 6z"/>',
   pen: '<path d="m4 20 4.2-1 10.6-10.6a2 2 0 0 0-2.8-2.8L5.4 16.2zM14.5 7.1l2.8 2.8"/>',
   highlighter: '<path d="m4 17 7-11 6 4-7 11M3 21h18M9.5 18.5l-4-2.5"/>',
+  circle: '<circle cx="12" cy="12" r="7.5"/>',
+  type: '<path d="M5 5h14M12 5v14M8.5 19h7"/>',
+  image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9" r="1.5"/><path d="m5 17 4.5-4.5 3 3 2-2L19 17"/>',
+  eraser: '<path d="m4.5 14.5 8.7-8.7a2.4 2.4 0 0 1 3.4 0l2.1 2.1a2.4 2.4 0 0 1 0 3.4l-7.2 7.2H7.2zM10 19h10M9.5 9.5l5 5"/>',
   more: '<circle cx="5" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1" fill="currentColor" stroke="none"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   undo: '<path d="M9 7 4 12l5 5M5 12h8a6 6 0 0 1 6 6"/>',
@@ -71,6 +75,8 @@ const state = {
   totalPages: DEMO_PAGES.length,
   zoom: stored.zoom || 0.9,
   mode: "read",
+  drawColor: stored.drawColor || "#f5a11a",
+  drawWidth: stored.drawWidth || 0.004,
   annotations: stored.annotations || {},
   notes: stored.notes || {},
   leftOpen: window.innerWidth > 850,
@@ -87,6 +93,9 @@ const state = {
   renderObserver: null,
   renderTasks: new Map(),
   scrollFrame: null,
+  activeHighlight: null,
+  activeRegion: null,
+  highlightSaveTimer: null,
 };
 
 const elements = {
@@ -108,6 +117,15 @@ const elements = {
   pageNotePill: document.querySelector("#pageNotePill"),
   composerPage: document.querySelector("#composerPage"),
   selectionMenu: document.querySelector("#selectionMenu"),
+  moreToolsButton: document.querySelector("#moreToolsButton"),
+  moreToolsPanel: document.querySelector("#moreToolsPanel"),
+  drawingOptions: document.querySelector("#drawingOptions"),
+  strokeWidthInput: document.querySelector("#strokeWidthInput"),
+  highlightPopover: document.querySelector("#highlightPopover"),
+  highlightSelectedText: document.querySelector("#highlightSelectedText"),
+  highlightNoteInput: document.querySelector("#highlightNoteInput"),
+  regionPopover: document.querySelector("#regionPopover"),
+  regionTitle: document.querySelector("#regionTitle"),
   uploadModal: document.querySelector("#uploadModal"),
   noteModal: document.querySelector("#noteModal"),
   notesListModal: document.querySelector("#notesListModal"),
@@ -159,11 +177,19 @@ function bindEvents() {
   document.querySelector("#pageNotePill").addEventListener("click", () => openNotesList(state.currentPage));
   document.querySelector("#undoButton").addEventListener("click", undoAnnotation);
   document.querySelector("#clearButton").addEventListener("click", clearPageAnnotations);
-  document.querySelector("#moreToolsButton").addEventListener("click", () => showToast("Mẹo: nhấp chuột phải vào slide để Hỏi AI hoặc ghi chú."));
+  elements.moreToolsButton.addEventListener("click", toggleMoreToolsPanel);
   document.querySelector("#saveNoteButton").addEventListener("click", saveNote);
   document.querySelector("#aiStatusButton").addEventListener("click", () => showToast(state.aiConfigured ? `Tutor đang dùng ${state.aiModel}.` : "Tutor đang ở chế độ demo. Thêm OPENAI_API_KEY vào môi trường server để bật AI thật."));
 
   document.querySelectorAll("[data-mode]").forEach((button) => button.addEventListener("click", () => setMode(button.dataset.mode)));
+  document.querySelectorAll("[data-tool-action]").forEach((button) => button.addEventListener("click", () => {
+    showToast(button.dataset.toolAction === "text" ? "Công cụ Text sẽ được bổ sung ở bản tiếp theo." : "Công cụ chèn ảnh sẽ được bổ sung ở bản tiếp theo.");
+  }));
+  document.querySelectorAll("[data-draw-color]").forEach((button) => button.addEventListener("click", () => setDrawColor(button.dataset.drawColor)));
+  elements.strokeWidthInput.addEventListener("input", () => {
+    state.drawWidth = Number(elements.strokeWidthInput.value) / 1000;
+    persistState();
+  });
   document.querySelectorAll("[data-close-modal]").forEach((button) => button.addEventListener("click", () => closeModal(button.dataset.closeModal)));
   document.querySelectorAll(".modal-backdrop").forEach((modal) => modal.addEventListener("mousedown", (event) => {
     if (event.target === modal) closeModal(modal.id);
@@ -185,13 +211,22 @@ function bindEvents() {
     if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); elements.chatForm.requestSubmit(); }
   });
   elements.selectionMenu.addEventListener("click", handleSelectionAction);
+  elements.highlightPopover.addEventListener("click", handleHighlightPopoverAction);
+  elements.highlightNoteInput.addEventListener("input", handleHighlightNoteInput);
+  elements.regionPopover.addEventListener("click", handleRegionAction);
   document.addEventListener("pointerdown", (event) => {
     if (!elements.selectionMenu.contains(event.target) && !event.target.closest(".page-paper")) hideSelectionMenu();
+    if (!elements.highlightPopover.contains(event.target) && !event.target.closest(".annotation-marker")) hideHighlightPopover();
+    if (!elements.regionPopover.contains(event.target) && !event.target.closest(".annotation-canvas")) hideRegionPopover();
+    if (!elements.moreToolsPanel.contains(event.target) && !event.target.closest("#moreToolsButton") && !event.target.closest(".page-paper")) hideMoreToolsPanel();
   });
   window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") { hideSelectionMenu(); document.querySelectorAll(".modal-backdrop:not(.hidden)").forEach((modal) => closeModal(modal.id)); }
+    if (event.key === "Escape") { hideSelectionMenu(); hideHighlightPopover(); hideRegionPopover(); hideMoreToolsPanel(); document.querySelectorAll(".modal-backdrop:not(.hidden)").forEach((modal) => closeModal(modal.id)); }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z" && !event.target.matches("textarea,input")) { event.preventDefault(); undoAnnotation(); }
   });
+
+  setDrawColor(state.drawColor, false);
+  elements.strokeWidthInput.value = String(Math.round(state.drawWidth * 1000));
 }
 
 function renderIcons(root) {
@@ -295,7 +330,7 @@ function createPageShell(pageNumber, baseWidth, baseHeight) {
   shell.innerHTML = `
     <div class="page-meta"><span>Trang ${pageNumber} / ${state.totalPages}</span><span>${escapeHtml(state.document.name)}</span></div>
     <div class="page-paper" style="width:${paperWidth}px;height:${paperHeight}px">
-      <canvas class="annotation-canvas"></canvas><div class="page-note-markers"></div>
+      <canvas class="annotation-canvas"></canvas><div class="annotation-markers"></div><div class="page-note-markers"></div>
     </div>`;
   return shell;
 }
@@ -336,16 +371,17 @@ async function loadPdf(file, docMeta) {
       const page = await pdf.getPage(pageNumber);
       const viewport = page.getViewport({ scale: 1 });
       let text = "";
+      let textContent = null;
       try {
-        const content = await page.getTextContent();
-        text = content.items.map((item) => item.str).join(" ").replace(/\s+/g, " ").trim();
+        textContent = await page.getTextContent();
+        text = textContent.items.map((item) => item.str).join(" ").replace(/\s+/g, " ").trim();
       } catch { text = ""; }
-      state.pdfPages.push({ page, baseWidth: viewport.width, baseHeight: viewport.height, renderedZoom: 0 });
+      state.pdfPages.push({ page, baseWidth: viewport.width, baseHeight: viewport.height, textContent, renderedZoom: 0, textLayerTask: null });
       state.pageTexts.push(text);
       const normalizedWidth = 1000;
       const normalizedHeight = normalizedWidth * (viewport.height / viewport.width);
       const shell = createPageShell(pageNumber, normalizedWidth, normalizedHeight);
-      shell.querySelector(".page-paper").insertAdjacentHTML("afterbegin", `<div class="pdf-skeleton">Trang ${pageNumber}</div><canvas class="pdf-canvas"></canvas>`);
+      shell.querySelector(".page-paper").insertAdjacentHTML("afterbegin", `<div class="pdf-skeleton">Trang ${pageNumber}</div><canvas class="pdf-canvas"></canvas><div class="pdf-text-layer"></div>`);
       elements.pagesHost.appendChild(shell);
       setupAnnotationLayer(shell, pageNumber);
       wireReadInteractions(shell, pageNumber);
@@ -400,6 +436,7 @@ async function renderPdfPage(pageNumber) {
     if (pageState === state.pdfPages[pageNumber - 1]) {
       pageState.renderedZoom = state.zoom;
       skeleton?.remove();
+      await renderPdfTextLayer(pageState, shell, scale);
     }
   } catch (error) {
     if (error?.name !== "RenderingCancelledException") console.error(error);
@@ -408,9 +445,25 @@ async function renderPdfPage(pageNumber) {
   }
 }
 
+async function renderPdfTextLayer(pageState, shell, scale) {
+  const container = shell.querySelector(".pdf-text-layer");
+  if (!container || !pageState.textContent) return;
+  try { pageState.textLayerTask?.cancel(); } catch { /* no-op */ }
+  container.innerHTML = "";
+  const viewport = pageState.page.getViewport({ scale });
+  const task = new pdfjsLib.TextLayer({ textContentSource: pageState.textContent, container, viewport });
+  pageState.textLayerTask = task;
+  try { await task.render(); } catch (error) {
+    if (error?.name !== "AbortException") console.error(error);
+  } finally {
+    if (pageState.textLayerTask === task) pageState.textLayerTask = null;
+  }
+}
+
 function cancelPdfRenders() {
   state.renderTasks.forEach((task) => { try { task.cancel(); } catch { /* no-op */ } });
   state.renderTasks.clear();
+  state.pdfPages.forEach((pageState) => { try { pageState.textLayerTask?.cancel(); } catch { /* no-op */ } pageState.textLayerTask = null; });
   disconnectRenderObserver();
 }
 
@@ -422,9 +475,40 @@ function disconnectRenderObserver() {
 function setMode(mode) {
   state.mode = mode;
   document.querySelectorAll("[data-mode]").forEach((button) => button.classList.toggle("active", button.dataset.mode === mode));
+  elements.moreToolsButton.classList.toggle("active", mode === "circle" || mode === "eraser");
+  elements.drawingOptions.classList.toggle("hidden", mode !== "circle");
+  if (mode === "read" || mode === "pen" || mode === "highlight") hideMoreToolsPanel();
+  hideSelectionMenu();
+  hideHighlightPopover();
+  hideRegionPopover();
+  window.getSelection()?.removeAllRanges();
   updatePageModes();
-  const messages = { read: "Chế độ đọc: bôi đen chữ hoặc nhấp chuột phải để mở menu ngữ cảnh.", pen: "Giữ và kéo chuột để viết lên slide.", highlight: "Kéo một vùng trên slide để highlight." };
+  const messages = {
+    read: "Chế độ đọc: bôi đen chữ hoặc nhấp chuột phải để mở menu ngữ cảnh.",
+    pen: "Giữ và kéo chuột để viết lên slide.",
+    highlight: "Kéo qua chữ để bôi highlight theo từng dòng.",
+    circle: "Khoanh vùng nội dung đang khiến bạn gặp vấn đề.",
+    eraser: "Nhấn vào đúng nét vẽ hoặc highlight muốn tẩy.",
+  };
   showToast(messages[mode]);
+}
+
+function toggleMoreToolsPanel() {
+  const willOpen = elements.moreToolsPanel.classList.contains("hidden");
+  elements.moreToolsPanel.classList.toggle("hidden", !willOpen);
+  elements.moreToolsButton.setAttribute("aria-expanded", String(willOpen));
+  elements.drawingOptions.classList.toggle("hidden", state.mode !== "circle");
+}
+
+function hideMoreToolsPanel() {
+  elements.moreToolsPanel.classList.add("hidden");
+  elements.moreToolsButton.setAttribute("aria-expanded", "false");
+}
+
+function setDrawColor(color, save = true) {
+  state.drawColor = color;
+  document.querySelectorAll("[data-draw-color]").forEach((button) => button.classList.toggle("active", button.dataset.drawColor === color));
+  if (save) persistState();
 }
 
 function updatePageModes() {
@@ -435,34 +519,46 @@ function setupAnnotationLayer(shell, pageNumber) {
   const canvas = shell.querySelector(".annotation-canvas");
   resizeAnnotationCanvas(canvas);
   drawAnnotations(pageNumber);
+  renderAnnotationMarkers(pageNumber);
   renderNoteMarkers(pageNumber);
   let drawing = null;
 
   canvas.addEventListener("pointerdown", (event) => {
-    if (state.mode === "read") return;
+    if (state.mode === "read" || state.mode === "highlight") return;
     event.preventDefault();
-    canvas.setPointerCapture(event.pointerId);
     const point = normalizedPoint(event, canvas);
-    drawing = state.mode === "pen"
-      ? { kind: "pen", points: [point], color: "#075591", width: 0.0035, createdAt: Date.now() }
-      : { kind: "highlight", start: point, end: point, color: "#ffd928", createdAt: Date.now() };
+    if (state.mode === "eraser") {
+      eraseAnnotationAtPoint(pageNumber, point, canvas);
+      return;
+    }
+    if (state.mode !== "pen" && state.mode !== "circle") return;
+    canvas.setPointerCapture(event.pointerId);
+    drawing = {
+      id: createAnnotationId(),
+      kind: state.mode,
+      points: [point],
+      color: state.mode === "circle" ? state.drawColor : "#075591",
+      width: state.mode === "circle" ? state.drawWidth : 0.0035,
+      createdAt: Date.now(),
+    };
   });
   canvas.addEventListener("pointermove", (event) => {
     if (!drawing) return;
-    const point = normalizedPoint(event, canvas);
-    if (drawing.kind === "pen") drawing.points.push(point); else drawing.end = point;
+    drawing.points.push(normalizedPoint(event, canvas));
     drawAnnotations(pageNumber, drawing);
   });
   canvas.addEventListener("pointerup", (event) => {
     if (!drawing) return;
-    if (drawing.kind === "highlight") drawing.end = normalizedPoint(event, canvas);
-    const valid = drawing.kind === "pen"
-      ? drawing.points.length > 1
-      : Math.abs(drawing.end.x - drawing.start.x) > 0.008 && Math.abs(drawing.end.y - drawing.start.y) > 0.008;
-    if (valid) getAnnotations(pageNumber).push(drawing);
+    drawing.points.push(normalizedPoint(event, canvas));
+    const completed = drawing;
+    const valid = completed.points.length > 2;
+    if (valid) getAnnotations(pageNumber).push(completed);
     drawing = null;
     persistState();
     drawAnnotations(pageNumber);
+    renderAnnotationMarkers(pageNumber);
+    updateChrome();
+    if (valid && completed.kind === "circle") showRegionPopover(pageNumber, completed);
   });
   canvas.addEventListener("pointercancel", () => { drawing = null; drawAnnotations(pageNumber); });
 }
@@ -494,11 +590,13 @@ function drawAnnotations(pageNumber, preview = null) {
       const width = Math.abs(annotation.end.x - annotation.start.x) * canvas.width;
       const height = Math.abs(annotation.end.y - annotation.start.y) * canvas.height;
       context.fillStyle = "rgba(255, 217, 40, .38)";
-      context.strokeStyle = "rgba(226, 173, 0, .35)";
-      context.lineWidth = Math.max(1, ratio);
       context.fillRect(x, y, width, height);
-      context.strokeRect(x, y, width, height);
-    } else if (annotation.kind === "pen" && annotation.points.length > 1) {
+    } else if (annotation.kind === "text-highlight" && annotation.rects?.length) {
+      context.fillStyle = "rgba(255, 214, 41, .52)";
+      annotation.rects.forEach((highlightRect) => {
+        context.fillRect(highlightRect.x * canvas.width, highlightRect.y * canvas.height, highlightRect.width * canvas.width, highlightRect.height * canvas.height);
+      });
+    } else if ((annotation.kind === "pen" || annotation.kind === "circle") && annotation.points?.length > 1) {
       context.beginPath();
       annotation.points.forEach((point, index) => {
         const x = point.x * canvas.width; const y = point.y * canvas.height;
@@ -509,6 +607,81 @@ function drawAnnotations(pageNumber, preview = null) {
       context.lineCap = "round"; context.lineJoin = "round"; context.stroke();
     }
   });
+}
+
+function createAnnotationId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function ensureAnnotationId(annotation) {
+  annotation.id ||= createAnnotationId();
+  return annotation.id;
+}
+
+function renderAnnotationMarkers(pageNumber) {
+  const holder = getPageShell(pageNumber)?.querySelector(".annotation-markers");
+  if (!holder) return;
+  const highlights = getAnnotations(pageNumber).filter((annotation) => annotation.kind === "text-highlight" && annotation.rects?.length);
+  holder.innerHTML = highlights.map((annotation) => {
+    const rect = annotation.rects.at(-1);
+    const id = ensureAnnotationId(annotation);
+    const left = Math.min(97, (rect.x + rect.width) * 100 + 1.2);
+    const top = Math.max(1, rect.y * 100 - 1);
+    return `<button class="annotation-marker" style="left:${left}%;top:${top}%" data-highlight-id="${escapeHtml(id)}" aria-label="Mở ghi chú highlight">${icon("note")}</button>`;
+  }).join("");
+  holder.querySelectorAll("[data-highlight-id]").forEach((button) => button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const bounds = button.getBoundingClientRect();
+    showHighlightPopover(pageNumber, button.dataset.highlightId, bounds.left, bounds.bottom + 8);
+  }));
+}
+
+function eraseAnnotationAtPoint(pageNumber, point, canvas) {
+  const annotations = getAnnotations(pageNumber);
+  let matchIndex = -1;
+  for (let index = annotations.length - 1; index >= 0; index -= 1) {
+    if (annotationContainsPoint(annotations[index], point, canvas)) { matchIndex = index; break; }
+  }
+  if (matchIndex < 0) return showToast("Không có nét vẽ hoặc highlight tại vị trí này.");
+  const [removed] = annotations.splice(matchIndex, 1);
+  if (state.activeHighlight?.id === removed.id) hideHighlightPopover();
+  if (state.activeRegion?.id === removed.id) hideRegionPopover();
+  persistState();
+  drawAnnotations(pageNumber);
+  renderAnnotationMarkers(pageNumber);
+  updateChrome();
+  showToast("Đã tẩy đúng chú thích được chọn.", "success");
+}
+
+function annotationContainsPoint(annotation, point, canvas) {
+  const toleranceX = 10 / Math.max(1, canvas.clientWidth);
+  const toleranceY = 10 / Math.max(1, canvas.clientHeight);
+  if (annotation.kind === "text-highlight") {
+    return annotation.rects?.some((rect) => point.x >= rect.x - toleranceX && point.x <= rect.x + rect.width + toleranceX && point.y >= rect.y - toleranceY && point.y <= rect.y + rect.height + toleranceY);
+  }
+  if (annotation.kind === "highlight" && annotation.start && annotation.end) {
+    const left = Math.min(annotation.start.x, annotation.end.x);
+    const right = Math.max(annotation.start.x, annotation.end.x);
+    const top = Math.min(annotation.start.y, annotation.end.y);
+    const bottom = Math.max(annotation.start.y, annotation.end.y);
+    return point.x >= left - toleranceX && point.x <= right + toleranceX && point.y >= top - toleranceY && point.y <= bottom + toleranceY;
+  }
+  if (!annotation.points?.length) return false;
+  const target = { x: point.x * canvas.clientWidth, y: point.y * canvas.clientHeight };
+  const tolerance = Math.max(8, (annotation.width || 0.0035) * canvas.clientWidth * 1.8);
+  for (let index = 1; index < annotation.points.length; index += 1) {
+    const start = { x: annotation.points[index - 1].x * canvas.clientWidth, y: annotation.points[index - 1].y * canvas.clientHeight };
+    const end = { x: annotation.points[index].x * canvas.clientWidth, y: annotation.points[index].y * canvas.clientHeight };
+    if (distanceToSegment(target, start, end) <= tolerance) return true;
+  }
+  return false;
+}
+
+function distanceToSegment(point, start, end) {
+  const dx = end.x - start.x; const dy = end.y - start.y;
+  if (!dx && !dy) return Math.hypot(point.x - start.x, point.y - start.y);
+  const t = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / (dx * dx + dy * dy)));
+  return Math.hypot(point.x - (start.x + t * dx), point.y - (start.y + t * dy));
 }
 
 function getAnnotations(pageNumber) {
@@ -528,14 +701,14 @@ function getNotes(pageNumber) {
 function undoAnnotation() {
   const annotations = getAnnotations(state.currentPage);
   if (!annotations.length) return showToast("Trang này chưa có nét vẽ hoặc highlight để hoàn tác.");
-  annotations.pop(); persistState(); drawAnnotations(state.currentPage); showToast("Đã hoàn tác.", "success");
+  annotations.pop(); hideHighlightPopover(); hideRegionPopover(); persistState(); drawAnnotations(state.currentPage); renderAnnotationMarkers(state.currentPage); updateChrome(); showToast("Đã hoàn tác.", "success");
 }
 
 function clearPageAnnotations() {
   const annotations = getAnnotations(state.currentPage);
   if (!annotations.length) return showToast("Trang này chưa có chú thích hình vẽ.");
   if (!window.confirm(`Xóa toàn bộ nét vẽ và highlight ở trang ${state.currentPage}?`)) return;
-  annotations.splice(0); persistState(); drawAnnotations(state.currentPage); showToast("Đã xóa chú thích trên trang.", "success");
+  annotations.splice(0); hideHighlightPopover(); hideRegionPopover(); persistState(); drawAnnotations(state.currentPage); renderAnnotationMarkers(state.currentPage); updateChrome(); showToast("Đã xóa chú thích trên trang.", "success");
 }
 
 function wireReadInteractions(shell, pageNumber) {
@@ -548,7 +721,12 @@ function wireReadInteractions(shell, pageNumber) {
     showSelectionMenu(event.clientX, event.clientY);
   });
   paper.addEventListener("mouseup", (event) => {
-    if (state.mode !== "read" || event.button === 2) return;
+    if (event.button === 2) return;
+    if (state.mode === "highlight") {
+      createTextHighlightFromSelection(paper, pageNumber);
+      return;
+    }
+    if (state.mode !== "read") return;
     const text = window.getSelection()?.toString().trim() || "";
     if (text.length >= 3) {
       state.selectionText = text.slice(0, 800);
@@ -556,6 +734,143 @@ function wireReadInteractions(shell, pageNumber) {
       showSelectionMenu(event.clientX, event.clientY - 48);
     }
   });
+}
+
+function createTextHighlightFromSelection(paper, pageNumber) {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount || selection.isCollapsed) return;
+  const range = selection.getRangeAt(0);
+  const commonNode = range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE ? range.commonAncestorContainer : range.commonAncestorContainer.parentElement;
+  if (!commonNode || !paper.contains(commonNode)) return;
+  const text = selection.toString().replace(/\s+/g, " ").trim().slice(0, 800);
+  if (text.length < 2) return;
+  const paperBounds = paper.getBoundingClientRect();
+  const clientRects = [...range.getClientRects()].filter((rect) => rect.width > 1 && rect.height > 1 && rect.right > paperBounds.left && rect.left < paperBounds.right && rect.bottom > paperBounds.top && rect.top < paperBounds.bottom);
+  if (!clientRects.length) return;
+  const rects = clientRects.map((rect) => {
+    const left = Math.max(rect.left, paperBounds.left);
+    const top = Math.max(rect.top, paperBounds.top);
+    const right = Math.min(rect.right, paperBounds.right);
+    const bottom = Math.min(rect.bottom, paperBounds.bottom);
+    return {
+      x: (left - paperBounds.left) / paperBounds.width,
+      y: (top - paperBounds.top) / paperBounds.height,
+      width: (right - left) / paperBounds.width,
+      height: (bottom - top) / paperBounds.height,
+    };
+  });
+  const annotation = { id: createAnnotationId(), kind: "text-highlight", rects, text, note: "", color: "#ffd629", createdAt: Date.now() };
+  getAnnotations(pageNumber).push(annotation);
+  selection.removeAllRanges();
+  persistState();
+  drawAnnotations(pageNumber);
+  renderAnnotationMarkers(pageNumber);
+  updateChrome();
+  const anchorRect = clientRects.at(-1);
+  showHighlightPopover(pageNumber, annotation.id, clientRects[0].left, anchorRect.bottom + 8);
+}
+
+function showHighlightPopover(pageNumber, annotationId, x, y) {
+  const annotation = getAnnotations(pageNumber).find((item) => ensureAnnotationId(item) === annotationId);
+  if (!annotation) return;
+  hideSelectionMenu();
+  hideRegionPopover();
+  state.activeHighlight = { page: pageNumber, id: annotationId };
+  elements.highlightSelectedText.textContent = annotation.text || "Đoạn nội dung đã chọn";
+  elements.highlightNoteInput.value = annotation.note || "";
+  elements.highlightPopover.classList.remove("hidden");
+  positionPopover(elements.highlightPopover, x, y);
+  setTimeout(() => elements.highlightNoteInput.focus(), 60);
+}
+
+function hideHighlightPopover() {
+  elements.highlightPopover.classList.add("hidden");
+  state.activeHighlight = null;
+}
+
+function handleHighlightNoteInput() {
+  const active = state.activeHighlight;
+  if (!active) return;
+  const annotation = getAnnotations(active.page).find((item) => item.id === active.id);
+  if (!annotation) return;
+  annotation.note = elements.highlightNoteInput.value;
+  clearTimeout(state.highlightSaveTimer);
+  state.highlightSaveTimer = setTimeout(() => { persistState(); updateChrome(); }, 220);
+}
+
+function handleHighlightPopoverAction(event) {
+  const button = event.target.closest("[data-highlight-action]");
+  if (!button || !state.activeHighlight) return;
+  const active = { ...state.activeHighlight };
+  if (button.dataset.highlightAction === "done") {
+    persistState(); updateChrome(); hideHighlightPopover();
+    return;
+  }
+  const annotations = getAnnotations(active.page);
+  const annotation = annotations.find((item) => item.id === active.id);
+  if (!annotation) return hideHighlightPopover();
+  if (button.dataset.highlightAction === "delete-note") {
+    annotation.note = "";
+    elements.highlightNoteInput.value = "";
+    persistState(); updateChrome();
+    showToast("Đã xóa ghi chú, vẫn giữ phần highlight.", "success");
+    return;
+  }
+  const index = annotations.indexOf(annotation);
+  if (index >= 0) annotations.splice(index, 1);
+  persistState(); drawAnnotations(active.page); renderAnnotationMarkers(active.page); updateChrome(); hideHighlightPopover();
+  showToast("Đã xóa highlight được chọn.", "success");
+}
+
+function positionPopover(popover, x, y) {
+  const bounds = popover.getBoundingClientRect();
+  const left = Math.max(10, Math.min(window.innerWidth - bounds.width - 10, x));
+  const top = Math.max(10, Math.min(window.innerHeight - bounds.height - 10, y));
+  popover.style.left = `${left}px`;
+  popover.style.top = `${top}px`;
+}
+
+function showRegionPopover(pageNumber, annotation) {
+  const paper = getPageShell(pageNumber)?.querySelector(".page-paper");
+  if (!paper || !annotation.points?.length) return;
+  hideHighlightPopover();
+  hideSelectionMenu();
+  state.activeRegion = { page: pageNumber, id: ensureAnnotationId(annotation) };
+  elements.regionTitle.textContent = `Vùng khoanh Trang ${pageNumber}`;
+  elements.regionPopover.classList.remove("hidden");
+  const paperBounds = paper.getBoundingClientRect();
+  const maxX = Math.max(...annotation.points.map((point) => point.x));
+  const minY = Math.min(...annotation.points.map((point) => point.y));
+  positionPopover(elements.regionPopover, paperBounds.left + maxX * paperBounds.width + 18, paperBounds.top + minY * paperBounds.height);
+}
+
+function hideRegionPopover() {
+  elements.regionPopover.classList.add("hidden");
+  state.activeRegion = null;
+}
+
+function handleRegionAction(event) {
+  const button = event.target.closest("[data-region-action]");
+  if (!button || !state.activeRegion) return;
+  const active = { ...state.activeRegion };
+  const action = button.dataset.regionAction;
+  if (action === "later") return hideRegionPopover();
+  if (action === "tutor") {
+    state.currentPage = active.page;
+    state.tutorOpen = true;
+    updateCurrentPageClass(); updateChrome(); updateWorkspace();
+    elements.chatInput.value = `Mình cần trợ giúp với vùng đã khoanh ở trang ${active.page}. Hãy giải thích phần nội dung liên quan trong trang này.`;
+    autoGrowComposer();
+    hideRegionPopover();
+    setTimeout(() => elements.chatInput.focus(), 120);
+    return;
+  }
+  const annotation = getAnnotations(active.page).find((item) => item.id === active.id);
+  if (annotation) annotation.reported = true;
+  addNote(active.page, `Cần giảng viên hỗ trợ vùng đã khoanh ở trang ${active.page}.`, "confused");
+  persistState();
+  hideRegionPopover();
+  showToast("Đã đánh dấu vùng cần giảng viên hỗ trợ.", "success");
 }
 
 function showSelectionMenu(x, y) {
@@ -614,15 +929,21 @@ function renderNoteMarkers(pageNumber) {
 
 function openNotesList(pageNumber) {
   const notes = getNotes(pageNumber);
+  const highlightNotes = getAnnotations(pageNumber).filter((annotation) => annotation.kind === "text-highlight" && annotation.note?.trim());
   elements.notesListPage.textContent = String(pageNumber);
-  elements.notesList.innerHTML = notes.length
-    ? notes.map((note) => `<article class="note-list-item"><p>${escapeHtml(note.text)}</p><footer><span>${formatTime(note.createdAt)} · ${note.type === "confused" ? "Bối rối" : "Ghi chú"}</span><button data-note-id="${escapeHtml(note.id)}">Xóa</button></footer></article>`).join("")
+  elements.notesList.innerHTML = notes.length || highlightNotes.length
+    ? notes.map((note) => `<article class="note-list-item"><p>${escapeHtml(note.text)}</p><footer><span>${formatTime(note.createdAt)} · ${note.type === "confused" ? "Bối rối" : "Ghi chú"}</span><button data-note-id="${escapeHtml(note.id)}">Xóa</button></footer></article>`).join("") + highlightNotes.map((annotation) => `<article class="note-list-item"><p>${escapeHtml(annotation.note)}</p><footer><span>${formatTime(annotation.createdAt)} · Highlight “${escapeHtml((annotation.text || "").slice(0, 45))}”</span><button data-highlight-note-id="${escapeHtml(ensureAnnotationId(annotation))}">Xóa note</button></footer></article>`).join("")
     : '<p style="color:var(--muted);font-size:13px">Trang này chưa có ghi chú.</p>';
   elements.notesList.querySelectorAll("[data-note-id]").forEach((button) => button.addEventListener("click", () => {
     const notesForPage = getNotes(pageNumber);
     const index = notesForPage.findIndex((note) => note.id === button.dataset.noteId);
     if (index >= 0) notesForPage.splice(index, 1);
     persistState(); renderNoteMarkers(pageNumber); updateChrome(); openNotesList(pageNumber);
+  }));
+  elements.notesList.querySelectorAll("[data-highlight-note-id]").forEach((button) => button.addEventListener("click", () => {
+    const annotation = getAnnotations(pageNumber).find((item) => item.id === button.dataset.highlightNoteId);
+    if (annotation) annotation.note = "";
+    persistState(); updateChrome(); openNotesList(pageNumber);
   }));
   openModal("notesListModal");
 }
@@ -647,7 +968,7 @@ function rebuildPdfShells() {
     const normalizedWidth = 1000;
     const normalizedHeight = normalizedWidth * pageState.baseHeight / pageState.baseWidth;
     const shell = createPageShell(index + 1, normalizedWidth, normalizedHeight);
-    shell.querySelector(".page-paper").insertAdjacentHTML("afterbegin", `<div class="pdf-skeleton">Trang ${index + 1}</div><canvas class="pdf-canvas"></canvas>`);
+    shell.querySelector(".page-paper").insertAdjacentHTML("afterbegin", `<div class="pdf-skeleton">Trang ${index + 1}</div><canvas class="pdf-canvas"></canvas><div class="pdf-text-layer"></div>`);
     elements.pagesHost.appendChild(shell);
     setupAnnotationLayer(shell, index + 1);
     wireReadInteractions(shell, index + 1);
@@ -697,7 +1018,8 @@ function updateChrome() {
   elements.currentPageLabel.textContent = String(state.currentPage);
   elements.totalPagesLabel.textContent = String(state.totalPages);
   elements.zoomLabel.textContent = `${Math.round(state.zoom * 100)}%`;
-  const count = getNotes(state.currentPage).length;
+  const highlightNoteCount = getAnnotations(state.currentPage).filter((annotation) => annotation.kind === "text-highlight" && annotation.note?.trim()).length;
+  const count = getNotes(state.currentPage).length + highlightNoteCount;
   elements.pageNotePill.textContent = `Trang ${state.currentPage} · ${count} note`;
   elements.composerPage.textContent = `trang ${state.currentPage}`;
   elements.quotaLabel.textContent = `${state.questionCount} / 15 câu`;
@@ -823,7 +1145,7 @@ function readStoredState() {
 
 function persistState() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ zoom: state.zoom, theme: state.theme, annotations: state.annotations, notes: state.notes, questionCount: state.questionCount, questionDate: todayKey }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ zoom: state.zoom, theme: state.theme, drawColor: state.drawColor, drawWidth: state.drawWidth, annotations: state.annotations, notes: state.notes, questionCount: state.questionCount, questionDate: todayKey }));
   } catch { showToast("Không thể lưu trạng thái cục bộ của trình duyệt.", "error"); }
 }
 

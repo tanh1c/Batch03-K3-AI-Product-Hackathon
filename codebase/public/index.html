@@ -52,7 +52,7 @@
               <button class="tool-button active" data-mode="read"><span data-icon="cursor"></span>Đọc</button>
               <button class="tool-button" data-mode="pen"><span data-icon="pen"></span>Bút</button>
               <button class="tool-button" data-mode="highlight"><span data-icon="highlighter"></span>Highlight</button>
-              <button class="icon-button" id="moreToolsButton" aria-label="Thêm công cụ" data-icon="more"></button>
+              <button class="icon-button" id="moreToolsButton" aria-label="Thêm công cụ" aria-expanded="false" aria-controls="moreToolsPanel" data-icon="more"></button>
             </div>
             <div class="toolbar-separator"></div>
             <button class="page-note-pill" id="pageNotePill">Trang 1 · 0 note</button>
@@ -64,6 +64,27 @@
               <button class="icon-button" id="addNoteButton" aria-label="Thêm ghi chú" data-icon="plus"></button>
               <button class="icon-button" id="undoButton" aria-label="Hoàn tác" data-icon="undo"></button>
               <button class="icon-button" id="clearButton" aria-label="Xóa chú thích trang" data-icon="trash"></button>
+            </div>
+            <div class="more-tools-panel hidden" id="moreToolsPanel">
+              <div class="extended-mode-tools">
+                <button class="extended-tool-button" data-mode="circle"><span data-icon="circle"></span>Khoanh</button>
+                <button class="extended-tool-button" data-tool-action="text"><span data-icon="type"></span>Text</button>
+                <button class="extended-tool-button" data-tool-action="image"><span data-icon="image"></span>Ảnh</button>
+                <button class="extended-tool-button eraser-tool" data-mode="eraser"><span data-icon="eraser"></span>Tẩy</button>
+              </div>
+              <div class="drawing-options hidden" id="drawingOptions">
+                <span class="option-divider"></span>
+                <div class="color-options" aria-label="Màu nét vẽ">
+                  <button class="color-swatch" data-draw-color="#e53935" style="--swatch:#e53935" aria-label="Màu đỏ"></button>
+                  <button class="color-swatch" data-draw-color="#2878d0" style="--swatch:#2878d0" aria-label="Màu xanh dương"></button>
+                  <button class="color-swatch" data-draw-color="#12a05c" style="--swatch:#12a05c" aria-label="Màu xanh lá"></button>
+                  <button class="color-swatch" data-draw-color="#f4c329" style="--swatch:#f4c329" aria-label="Màu vàng"></button>
+                  <button class="color-swatch active" data-draw-color="#f5a11a" style="--swatch:#f5a11a" aria-label="Màu cam"></button>
+                  <button class="color-swatch" data-draw-color="#17263d" style="--swatch:#17263d" aria-label="Màu đen"></button>
+                </div>
+                <span class="option-divider"></span>
+                <label class="stroke-option" for="strokeWidthInput"><span>NÉT</span><input id="strokeWidthInput" type="range" min="2" max="9" value="4" /></label>
+              </div>
             </div>
           </section>
 
@@ -111,6 +132,25 @@
         <button data-action="confused"><span data-icon="alert"></span>Báo bối rối</button>
         <button data-action="note"><span data-icon="note"></span>Ghi chú</button>
       </div>
+
+      <section class="annotation-popover highlight-popover hidden" id="highlightPopover" role="dialog" aria-label="Ghi chú highlight">
+        <header><strong><span data-icon="note"></span>Ghi chú highlight</strong><button data-highlight-action="done">Xong</button></header>
+        <div class="selection-preview"><span>ĐOẠN ĐÃ CHỌN</span><p id="highlightSelectedText"></p></div>
+        <textarea id="highlightNoteInput" rows="3" maxlength="1000" placeholder="Viết ghi chú cho đoạn highlight…"></textarea>
+        <footer>
+          <button data-highlight-action="delete-note"><span data-icon="trash"></span>Xóa note</button>
+          <button data-highlight-action="delete-highlight"><span data-icon="trash"></span>Xóa highlight</button>
+        </footer>
+      </section>
+
+      <section class="annotation-popover region-popover hidden" id="regionPopover" role="dialog" aria-label="Hành động với vùng khoanh">
+        <header class="region-heading"><span class="region-symbol" data-icon="circle"></span><div><strong id="regionTitle">Vùng khoanh Trang 1</strong><p>Hệ thống xem vùng này là điểm sinh viên đang gặp vấn đề.</p></div></header>
+        <div class="region-actions">
+          <button class="region-tutor-button" data-region-action="tutor"><span data-icon="bot"></span>Hỏi VLearn Tutor</button>
+          <button class="region-report-button" data-region-action="report"><span data-icon="alert"></span>Báo GV</button>
+        </div>
+        <button class="region-later-button" data-region-action="later">Để sau</button>
+      </section>
 
       <div class="modal-backdrop hidden" id="uploadModal">
         <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="uploadTitle">
