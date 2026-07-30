@@ -37,18 +37,34 @@ Nguồn nghiên cứu: tài liệu hỗ trợ chính thức NotebookLM và ChatG
 
 ### Non-goals
 
-1. Không tự động segment mọi vùng ảnh/text trong slide ở MVP.
-2. Không OCR PDF scan hoặc huấn luyện model detection/segmentation.
+1. Không tự động gửi toàn bộ slide, PDF hoặc vùng vừa chọn đến AI; chỉ gửi context tối thiểu sau khi học viên chủ động bấm gửi.
+2. Không OCR toàn bộ PDF scan và không huấn luyện model detection/segmentation riêng.
 3. Không trả lời ngoài vùng hình và context được cung cấp; không thay thế TA/giảng viên.
 4. Không thay thế flow chọn text hiện tại.
 
 ### Mức prototype
 
-**Working cho lát cắt demo có bounds visual cấu hình sẵn.** Thật: click region, PNG crop, multimodal AI call, structured routing, post-validation, provenance, recovery và redacted trace. Mock/giới hạn: phát hiện bounds trên slide demo được cấu hình thủ công; chưa tự phát hiện mọi visual trong PDF.
+**Working end-to-end cho lát cắt Direction B có bounds visual cấu hình sẵn.** Luồng thật gồm click region, PNG crop, multimodal AI call, structured routing, post-validation, provenance, recovery và redacted trace.
+
+**Direction C đang ở mức package đã kiểm thử, chưa phải flow end-to-end trên PDF upload.** C0 chuẩn hóa selection; C1 tạo Snip hình chữ nhật; C2 crop PDF và lấy text giao nhau; C3/C4 phát hiện image, vector và text region; C5 tạo overlay accessible. C6–C8 còn phải nối Circle/detector/overlay với crop và Tutor. Vì vậy bản hiện tại chưa tuyên bố auto-detect hoặc click-to-AI hoàn chỉnh trên PDF tải lên.
 
 ### Automation
 
 **Conditional.** Khi visual đủ căn cứ, AI tự giải thích; khi thiếu nhãn, ảnh mờ hoặc ngoài nguồn, AI không đoán mà chọn recovery. Cost-of-error cao vì learner khó phát hiện một giải thích hình sai và có thể học sai kiến thức; user giữ quyền chọn lại vùng/hỏi lại.
+
+### Luồng dữ liệu và ranh giới riêng tư
+
+```text
+Direction B đang chạy:
+click vùng hình cấu hình sẵn → crop PNG → học viên nhập câu hỏi và bấm gửi
+→ /api/analyze → route + answer/reason + recovery_action → provenance slide
+
+Direction C đang tích hợp:
+Snip/Circle hoặc candidate detector → C0 selection chuẩn hóa
+→ C2 crop + text tối thiểu → học viên bấm gửi → Visual Tutor
+```
+
+API key chỉ tồn tại phía server. Client không tự động gọi Tutor khi tạo Snip, vẽ Circle, phát hiện hoặc click candidate. Hệ thống không log/persist raw crop, raw extracted/OCR text, raw question, API key hoặc upstream response body; trace chỉ giữ metadata đã redacted.
 
 ### §4b. HAX/PAIR
 
@@ -74,7 +90,7 @@ Nguồn nghiên cứu: tài liệu hỗ trợ chính thức NotebookLM và ChatG
 | User đảo vai trò hand-crafted features | ④ Domain | Sửa đúng theo mũi tên/nhãn trong hình | G11 |
 | User hỏi chiều pipeline Deep Learning | ④ Domain | Chỉ nêu đúng Raw data → Neural network → Prediction | G2/G11 |
 
-Các case tương ứng nằm trong `eval/golden-set.json` (`H01`–`H08`).
+Các case tương ứng nằm trong `eval/golden-set.json` (`H01`–`H08`). Direction C còn có rủi ro kỹ thuật riêng: PDF.js biểu diễn ảnh/vector qua operator và ma trận transform; path nền hoặc trang trí có thể bị nhận nhầm; text nhiều cột có thể bị gộp sai; PDF scan có thể không có text layer. Detector hiện dùng CTM đầy đủ, save/restore, bốn góc qua viewport, giới hạn số path/text item và lọc background/region quá lớn; OCR chỉ là fallback dự kiến cho vùng không có text sau C7/C8.
 
 ## §6. Bốn đường đi của trải nghiệm
 
@@ -113,6 +129,15 @@ Không hạ bar sau khi đo.
 
 Hai failure được giữ nguyên: `O08` false recovery (`NEED_WIDER_REGION` thay vì grounded) và `R02` sai loại recovery (`NEED_BETTER_IMAGE` thay vì `INSUFFICIENT`) nhưng không hallucinate. Chi tiết: `eval/run-01-results.json`, `eval/run-01-summary.md`; trace redacted: `eval/real-call-trace.json`.
 
+### Xác minh prototype và Direction C tại commit `ba2a1e3`
+
+- Automated suite: **79/79 test pass, 0 fail**.
+- PDF thật `01 - 4-day02-lecture-slides-v2.pdf`: render đủ **49 trang**; canvas và text layer trang đầu hoạt động.
+- Snip: kéo thuận/ngược và vùng tối thiểu được kiểm thử; outline giữ theo tọa độ chuẩn hóa khi zoom; đổi tài liệu xóa selection.
+- Regression Read/Pen/Circle: pass; tạo Snip không phát sinh request `/api/tutor` hoặc `/api/analyze`.
+- Detector package nhận diện được candidate hữu ích trên PDF thật, gồm vector ở trang 2 và 9, cùng text/image/vector ở trang 6; page-sized background và nét trang trí mỏng bị lọc.
+- Giới hạn: các candidate detector và C5 overlay chưa được C8 nối vào giao diện PDF upload; các kết quả này chứng minh module, không chứng minh luồng auto-detect end-to-end.
+
 ## §8. Phân công & kế hoạch
 
 - Nhóm: **F2 — Lab D305**.
@@ -126,14 +151,13 @@ Hai failure được giữ nguyên: `O08` false recovery (`NEED_WIDER_REGION` th
 | 4 | Vũ Tiến Dũng | 2A202602009 |
 | 5 | Nguyễn Đức Chung | 2A202601705 |
 
-| Phần | Owner |
+| Thành viên | Phần phụ trách và code có thể giải thích |
 |---|---|
-| Spec | Vũ Tiến Dũng |
-| Evidence/mining | Đào Thị Trang |
-| Prompt/eval | Lê Minh Ngọc |
-| Code | Chu Nguyễn Tuấn Anh |
-| Validation | Chu Nguyễn Tuấn Anh |
-| Demo/slides | Nguyễn Đức Chung |
+| Chu Nguyễn Tuấn Anh | C0 selection contract, C1 Snip, C2 PDF context; review và tích hợp nhánh; validation |
+| Đào Thị Trang | Evidence/mining; C3 image/vector detector và C4 text-region detector |
+| Lê Minh Ngọc | Prompt/eval; AI provider và Visual Tutor contract |
+| Vũ Tiến Dũng | Nhóm trưởng; spec; PDF reader và luồng frontend/demo |
+| Nguyễn Đức Chung | C5 accessible selection overlay, C6 Circle bridge; demo/slides |
 
 - Willing users đã khai từ CP1 và tham gia validation: **Nguyễn Thị Hải Yến (V01), Nguyễn Hoàng Biên (V02), Trần Xuân Lộc (V03)** — đều là người thử ngoài nhóm.
 - Validation: 5 người ngoài nhóm thực hiện task không được hướng dẫn; hỏi 3 câu trong `validation/protocol.md`; owner ghi quote nguyên văn.
@@ -148,3 +172,5 @@ Hai failure được giữ nguyên: `O08` false recovery (`NEED_WIDER_REGION` th
 | 30/07/2026 | Bắt buộc output tiếng Việt | Live recovery từng trả tiếng Anh |
 | 30/07/2026 | Giữ hai failure run 01, không sửa số | Rubric yêu cầu bảng trung thực; cả hai fail là sai routing recovery, không hallucination |
 | 30/07/2026 | Quyết định làm vùng hình dễ nhận ra hơn và thêm câu hỏi gợi ý ngắn | V01–V05: 2/5 khó nhận ra vùng bấm và 2/5 không rõ nên hỏi gì |
+| 31/07/2026 | Ghi nhận C0–C5 là package đã kiểm thử, chưa tuyên bố Direction C end-to-end | C6–C8 chưa hoàn tất integration; tránh mô tả vượt quá bản build |
+| 31/07/2026 | Bổ sung smoke test PDF thật và 79/79 automated tests | Cung cấp bằng chứng tái lập cho prototype ngoài AI golden set |
