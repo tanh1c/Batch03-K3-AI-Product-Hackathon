@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" role="img" aria-labelledby="title description">
+  <title id="title">Machine Learning và Deep Learning</title>
+  <desc id="description">Hai luồng xử lý dữ liệu và đặc trưng trước khi dự đoán.</desc>
+  <rect width="960" height="540" fill="#f8fbff"/>
+  <text x="480" y="58" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="30" font-weight="700" fill="#17263d">Hai cách học từ dữ liệu</text>
+  <rect x="55" y="100" width="390" height="350" rx="18" fill="#e5f0ff" stroke="#8db9ff" stroke-width="3"/>
+  <rect x="515" y="100" width="390" height="350" rx="18" fill="#e8fbf4" stroke="#7ed8b4" stroke-width="3"/>
+  <text x="250" y="150" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="25" font-weight="700" fill="#075591">Machine Learning</text>
+  <text x="710" y="150" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="25" font-weight="700" fill="#14845a">Deep Learning</text>
+  <text x="250" y="220" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="21" fill="#17263d">Raw data</text>
+  <path d="M250 235v45" stroke="#075591" stroke-width="5" marker-end="url(#blue-arrow)"/>
+  <text x="250" y="320" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="19" fill="#17263d">Hand-crafted features</text>
+  <path d="M250 335v45" stroke="#075591" stroke-width="5" marker-end="url(#blue-arrow)"/>
+  <text x="250" y="420" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="21" font-weight="700" fill="#075591">ML model</text>
+  <text x="710" y="220" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="21" fill="#17263d">Raw data</text>
+  <path d="M710 235v45" stroke="#14845a" stroke-width="5" marker-end="url(#green-arrow)"/>
+  <text x="710" y="320" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="19" fill="#17263d">Neural network</text>
+  <path d="M710 335v45" stroke="#14845a" stroke-width="5" marker-end="url(#green-arrow)"/>
+  <text x="710" y="420" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="21" font-weight="700" fill="#14845a">Prediction</text>
+  <defs>
+    <marker id="blue-arrow" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto"><path d="M0 0 8 4 0 8z" fill="#075591"/></marker>
+    <marker id="green-arrow" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto"><path d="M0 0 8 4 0 8z" fill="#14845a"/></marker>
+  </defs>
+</svg>

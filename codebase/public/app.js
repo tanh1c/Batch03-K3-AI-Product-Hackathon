@@ -1,6 +1,13 @@
 import * as pdfjsLib from "/vendor/pdf.mjs";
+import { toPixelBounds } from "/geometry.mjs";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = "/vendor/pdf.worker.mjs";
+
+const VISUAL_REGIONS = {
+  left: { label: "Nhánh Machine Learning", x: 0.057, y: 0.185, width: 0.406, height: 0.648 },
+  right: { label: "Nhánh Deep Learning", x: 0.536, y: 0.185, width: 0.406, height: 0.648 },
+  whole: { label: "Toàn bộ sơ đồ", x: 0, y: 0, width: 1, height: 1 },
+};
 
 const DEMO_PAGES = [
   {
@@ -9,9 +16,9 @@ const DEMO_PAGES = [
     layout: "cover",
   },
   {
-    title: "Một mô hình, nhiều năng lực",
-    text: "Mô hình ngôn ngữ lớn có thể tóm tắt, phân loại, trích xuất thông tin và tạo nội dung. Kết quả tốt phụ thuộc vào ngữ cảnh, yêu cầu rõ ràng và cách con người kiểm tra đầu ra.",
-    layout: "orbit",
+    title: "Machine Learning và Deep Learning",
+    text: "So sánh cách hai phương pháp xử lý đặc trưng trước khi dự đoán.",
+    layout: "visual",
   },
   {
     title: "Ba nhóm hệ thống AI",
@@ -78,10 +85,12 @@ const state = {
   theme: stored.theme || "light",
   selectionText: "",
   selectionPage: 1,
+  visualSelection: null,
   noteDraftPage: 1,
   chat: [],
   questionCount: stored.questionDate === todayKey ? (stored.questionCount || 0) : 0,
   aiConfigured: false,
+  aiProvider: null,
   aiModel: null,
   sending: false,
   renderObserver: null,
@@ -161,7 +170,7 @@ function bindEvents() {
   document.querySelector("#clearButton").addEventListener("click", clearPageAnnotations);
   document.querySelector("#moreToolsButton").addEventListener("click", () => showToast("Mẹo: nhấp chuột phải vào slide để Hỏi AI hoặc ghi chú."));
   document.querySelector("#saveNoteButton").addEventListener("click", saveNote);
-  document.querySelector("#aiStatusButton").addEventListener("click", () => showToast(state.aiConfigured ? `Tutor đang dùng ${state.aiModel}.` : "Tutor đang ở chế độ demo. Thêm OPENAI_API_KEY vào môi trường server để bật AI thật."));
+  document.querySelector("#aiStatusButton").addEventListener("click", () => showToast(state.aiConfigured ? `Tutor đã cấu hình ${state.aiProvider}/${state.aiModel}.` : `Tutor đang ở chế độ demo. Hãy cấu hình ${state.aiProvider || "AI provider"} trên server.`));
 
   document.querySelectorAll("[data-mode]").forEach((button) => button.addEventListener("click", () => setMode(button.dataset.mode)));
   document.querySelectorAll("[data-close-modal]").forEach((button) => button.addEventListener("click", () => closeModal(button.dataset.closeModal)));
@@ -241,6 +250,7 @@ async function activateDocument(id) {
   if (id === state.document.id) return;
   if (id === "demo-foundation") {
     cancelPdfRenders();
+    clearVisualSelection();
     state.document = { id: "demo-foundation", name: "AI trong hành động.pdf", type: "demo" };
     state.pdfDocument = null;
     state.pdfPages = [];
@@ -269,6 +279,7 @@ function renderDemoDocument() {
     elements.pagesHost.appendChild(shell);
     setupAnnotationLayer(shell, index + 1);
     wireReadInteractions(shell, index + 1);
+    wireVisualInteractions(shell, index + 1);
   });
   updatePageModes();
   updateCurrentPageClass();
@@ -277,6 +288,7 @@ function renderDemoDocument() {
 function demoPageMarkup(page, index) {
   const common = `<span class="eyebrow">AI IN ACTION · DAY 1</span>`;
   if (page.layout === "cover") return `<div class="demo-slide cover">${common}<h2>${escapeHtml(page.title)}</h2><p>Bạn đang dùng AI mỗi ngày — nhưng thực sự bên trong nó đang làm gì?</p><div class="accent-line"></div><span class="slide-number">${index + 1}</span></div>`;
+  if (page.layout === "visual") return `<div class="demo-slide visual-slide">${common}<h2>${escapeHtml(page.title)}</h2><p>${escapeHtml(page.text)}</p><div class="visual-context-stage"><img src="/assets/ml-vs-dl.svg" alt="Sơ đồ so sánh Machine Learning và Deep Learning" crossorigin="anonymous"><button type="button" class="visual-region" data-visual-region="left" aria-label="Hỏi AI về nhánh Machine Learning"><span>Hỏi vùng này</span></button><button type="button" class="visual-region" data-visual-region="right" aria-label="Hỏi AI về nhánh Deep Learning"><span>Hỏi vùng này</span></button></div><button type="button" class="visual-whole-button" data-visual-region="whole">Chọn toàn bộ sơ đồ</button><span class="slide-number">${index + 1}</span></div>`;
   if (page.layout === "orbit") return `<div class="demo-slide two-column"><div class="slide-copy">${common}<h2>${escapeHtml(page.title)}</h2><p>${escapeHtml(page.text)}</p></div><div class="diagram-orbit"><div class="core">LLM</div><i>Tóm tắt</i><i>Sáng tạo</i><i>Trích xuất</i><i>Phân loại</i></div><span class="slide-number">${index + 1}</span></div>`;
   if (page.layout === "cards") return `<div class="demo-slide">${common}<h2>${escapeHtml(page.title)}</h2><div class="card-grid"><div class="concept-card"><span class="number">01</span><h3>Phân loại</h3><p>Đưa ra nhãn, điểm số hoặc dự đoán.</p></div><div class="concept-card"><span class="number">02</span><h3>Sinh nội dung</h3><p>Tạo văn bản, hình ảnh hoặc âm thanh.</p></div><div class="concept-card"><span class="number">03</span><h3>Hành động</h3><p>Lập kế hoạch và sử dụng công cụ.</p></div></div><span class="slide-number">${index + 1}</span></div>`;
   if (page.layout === "timeline") return `<div class="demo-slide">${common}<h2>${escapeHtml(page.title)}</h2><p>${escapeHtml(page.text)}</p><div class="timeline"><div class="timeline-step"><b>1</b><span>Token hóa</span></div><div class="timeline-step"><b>2</b><span>Transformer</span></div><div class="timeline-step"><b>3</b><span>Xác suất</span></div><div class="timeline-step"><b>4</b><span>Sinh câu</span></div></div><span class="slide-number">${index + 1}</span></div>`;
@@ -317,6 +329,7 @@ async function handleFile(file) {
 
 async function loadPdf(file, docMeta) {
   cancelPdfRenders();
+  clearVisualSelection();
   showLoading(true, "Đang mở PDF…");
   try {
     const data = new Uint8Array(await file.arrayBuffer());
@@ -543,19 +556,78 @@ function wireReadInteractions(shell, pageNumber) {
   paper.addEventListener("contextmenu", (event) => {
     if (state.mode !== "read") return;
     event.preventDefault();
+    clearVisualSelection();
     state.selectionText = window.getSelection()?.toString().trim() || "";
     state.selectionPage = pageNumber;
     showSelectionMenu(event.clientX, event.clientY);
   });
   paper.addEventListener("mouseup", (event) => {
-    if (state.mode !== "read" || event.button === 2) return;
+    if (state.mode !== "read" || event.button === 2 || event.target.closest("[data-visual-region]")) return;
     const text = window.getSelection()?.toString().trim() || "";
     if (text.length >= 3) {
+      clearVisualSelection();
       state.selectionText = text.slice(0, 800);
       state.selectionPage = pageNumber;
       showSelectionMenu(event.clientX, event.clientY - 48);
     }
   });
+}
+
+function wireVisualInteractions(shell, pageNumber) {
+  shell.querySelectorAll("[data-visual-region]").forEach((button) => {
+    button.addEventListener("click", () => selectVisualRegion(button.dataset.visualRegion, pageNumber));
+  });
+  updateVisualSelection();
+}
+
+function selectVisualRegion(regionName, pageNumber) {
+  const region = VISUAL_REGIONS[regionName];
+  if (!region) return;
+  state.visualSelection = { regionName, pageNumber };
+  state.selectionText = "";
+  state.currentPage = pageNumber;
+  state.tutorOpen = true;
+  elements.chatInput.value = regionName === "whole"
+    ? "Giải thích toàn bộ sơ đồ này."
+    : `Giải thích ${region.label.toLocaleLowerCase("vi")} trong hình.`;
+  updateVisualSelection();
+  updateCurrentPageClass();
+  updateWorkspace();
+  updateChrome();
+  autoGrowComposer();
+  elements.chatInput.focus();
+}
+
+function clearVisualSelection() {
+  if (!state.visualSelection) return;
+  state.visualSelection = null;
+  updateVisualSelection();
+  updateChrome();
+}
+
+function updateVisualSelection() {
+  elements.pagesHost.querySelectorAll("[data-visual-region]").forEach((button) => {
+    const shell = button.closest(".page-shell");
+    const selected = Number(shell?.dataset.page) === state.visualSelection?.pageNumber
+      && button.dataset.visualRegion === state.visualSelection?.regionName;
+    button.classList.toggle("selected", selected);
+    button.setAttribute("aria-pressed", String(selected));
+  });
+}
+
+async function cropSelectedRegion(selection) {
+  const shell = getPageShell(selection.pageNumber);
+  const image = shell?.querySelector(".visual-context-stage img");
+  const region = VISUAL_REGIONS[selection.regionName];
+  if (!image || !region) throw new Error("Không tìm thấy vùng hình đã chọn.");
+  if (!image.complete) await image.decode();
+  const bounds = toPixelBounds(region, image.naturalWidth, image.naturalHeight);
+  const scale = Math.min(1, 1400 / Math.max(bounds.sw, bounds.sh));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bounds.sw * scale));
+  canvas.height = Math.max(1, Math.round(bounds.sh * scale));
+  canvas.getContext("2d").drawImage(image, bounds.sx, bounds.sy, bounds.sw, bounds.sh, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/png").split(",")[1];
 }
 
 function showSelectionMenu(x, y) {
@@ -699,7 +771,9 @@ function updateChrome() {
   elements.zoomLabel.textContent = `${Math.round(state.zoom * 100)}%`;
   const count = getNotes(state.currentPage).length;
   elements.pageNotePill.textContent = `Trang ${state.currentPage} · ${count} note`;
-  elements.composerPage.textContent = `trang ${state.currentPage}`;
+  elements.composerPage.textContent = state.visualSelection
+    ? `${VISUAL_REGIONS[state.visualSelection.regionName].label} · slide ${state.visualSelection.pageNumber}`
+    : `trang ${state.currentPage}`;
   elements.quotaLabel.textContent = `${state.questionCount} / 15 câu`;
   elements.quotaProgress.style.width = `${Math.min(100, state.questionCount / 15 * 100)}%`;
 }
@@ -723,8 +797,9 @@ async function checkApiHealth() {
     const response = await fetch("/api/health");
     const data = await response.json();
     state.aiConfigured = Boolean(data.aiConfigured);
+    state.aiProvider = data.provider;
     state.aiModel = data.model;
-    elements.aiModeLabel.textContent = state.aiConfigured ? "AI LIVE" : "DEMO";
+    elements.aiModeLabel.textContent = state.aiConfigured ? "AI READY" : "DEMO";
   } catch {
     state.aiConfigured = false;
     elements.aiModeLabel.textContent = "OFFLINE";
@@ -734,6 +809,7 @@ async function checkApiHealth() {
 async function sendQuestion(event) {
   event.preventDefault();
   const question = elements.chatInput.value.trim();
+  const visualSelection = state.visualSelection ? { ...state.visualSelection } : null;
   if (!question || state.sending) return;
   if (state.questionCount >= 15) return showToast("Bạn đã dùng hết quota demo 15 câu hôm nay.", "error");
   state.tutorOpen = true; state.sending = true; updateWorkspace();
@@ -741,23 +817,10 @@ async function sendQuestion(event) {
   elements.chatInput.value = ""; autoGrowComposer(); renderChat(true);
   elements.sendButton.disabled = true;
   const typingId = showTyping();
-  const contextPages = selectContextPages(question);
 
   try {
-    const response = await fetch("/api/tutor", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question, documentName: state.document.name, currentPage: state.currentPage, contextPages }),
-    });
-    const data = await response.json();
-    if (!response.ok && !data.fallback) throw new Error(data.error || "Tutor chưa thể trả lời.");
-    state.chat.push({
-      role: "assistant",
-      answer: data.answer || data.fallback,
-      citations: data.citations || contextPages.map((item) => ({ page: item.page, excerpt: item.text.slice(0, 150) })),
-      confidence: data.confidence || 65,
-      mode: data.mode || "fallback",
-    });
+    if (visualSelection) await sendVisualQuestion(question, visualSelection);
+    else await sendTextQuestion(question);
     state.questionCount += 1;
     persistState(); updateChrome();
   } catch (error) {
@@ -766,6 +829,48 @@ async function sendQuestion(event) {
     document.querySelector(`[data-typing-id="${typingId}"]`)?.remove();
     state.sending = false; elements.sendButton.disabled = false; renderChat(true); elements.chatInput.focus();
   }
+}
+
+async function sendTextQuestion(question) {
+  const contextPages = selectContextPages(question);
+  const response = await fetch("/api/tutor", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question, documentName: state.document.name, currentPage: state.currentPage, contextPages }),
+  });
+  const data = await response.json();
+  if (!response.ok && !data.fallback) throw new Error(data.error || "Tutor chưa thể trả lời.");
+  state.chat.push({
+    role: "assistant",
+    answer: data.answer || data.fallback,
+    citations: data.citations || contextPages.map((item) => ({ page: item.page, excerpt: item.text.slice(0, 150) })),
+    confidence: data.confidence || 65,
+    mode: data.mode || "fallback",
+  });
+}
+
+async function sendVisualQuestion(question, selection) {
+  const response = await fetch("/api/analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      imageData: await cropSelectedRegion(selection),
+      mediaType: "image/png",
+      question,
+      slideNumber: selection.pageNumber,
+      nearbyText: (state.pageTexts[selection.pageNumber - 1] || "").slice(0, 4000),
+    }),
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || "Visual Tutor chưa thể trả lời.");
+  state.chat.push({
+    role: "assistant",
+    answer: result.route === "VISUAL_GROUNDED" ? result.answer : result.reason,
+    mode: "visual",
+    visualRoute: result.route,
+    visualPage: selection.pageNumber,
+    recoveryAction: result.recovery_action,
+  });
 }
 
 function selectContextPages(question) {
@@ -788,12 +893,31 @@ function renderChat(scrollToBottom = false) {
   elements.chatMessages.innerHTML = state.chat.map((message) => {
     if (message.role === "user") return `<article class="message user"><div class="message-bubble">${escapeHtml(message.answer)}</div></article>`;
     const sources = message.citations?.length ? `<div class="source-block"><div class="source-title">${icon("book-open")} ${message.citations.length} nguồn tham khảo</div>${message.citations.map((source) => `<button class="source-card" data-source-page="${source.page}"><strong>TRANG ${source.page}</strong><span>${escapeHtml(source.excerpt || "Nội dung liên quan trong tài liệu")}</span></button>`).join("")}</div>` : "";
-    const confidence = message.mode === "system" ? "" : `<div class="confidence-row"><div class="confidence-bar"><span style="width:${message.confidence || 0}%"></span></div><span>${message.confidence || 0}% · ${message.confidence >= 80 ? "Tin cậy cao" : message.confidence >= 60 ? "Nên kiểm tra nguồn" : "Thiếu căn cứ"}</span></div>`;
-    const mode = message.mode === "demo" ? '<span class="message-mode">Phản hồi demo</span>' : message.mode === "live" ? '<span class="message-mode" style="background:#dcf8ef;color:#087456">AI LIVE</span>' : "";
-    return `<article class="message assistant"><div class="assistant-label">${icon("bot")} VLEARN TUTOR</div><div class="message-bubble">${formatAnswer(message.answer)}</div>${mode}${sources}${confidence}</article>`;
+    const confidence = message.mode === "system" || message.mode === "visual" ? "" : `<div class="confidence-row"><div class="confidence-bar"><span style="width:${message.confidence || 0}%"></span></div><span>${message.confidence || 0}% · ${message.confidence >= 80 ? "Tin cậy cao" : message.confidence >= 60 ? "Nên kiểm tra nguồn" : "Thiếu căn cứ"}</span></div>`;
+    const mode = message.mode === "demo" ? '<span class="message-mode">Phản hồi demo</span>' : message.mode === "live" ? '<span class="message-mode" style="background:#dcf8ef;color:#087456">AI LIVE</span>' : message.mode === "visual" ? '<span class="message-mode visual-mode">VISUAL AI</span>' : "";
+    const visual = message.mode === "visual" ? renderVisualEvidence(message) : "";
+    return `<article class="message assistant"><div class="assistant-label">${icon("bot")} VLEARN TUTOR</div><div class="message-bubble">${formatAnswer(message.answer)}</div>${mode}${visual}${sources}${confidence}</article>`;
   }).join("");
   elements.chatMessages.querySelectorAll("[data-source-page]").forEach((button) => button.addEventListener("click", () => scrollToPage(Number(button.dataset.sourcePage))));
+  elements.chatMessages.querySelectorAll("[data-visual-recovery]").forEach((button) => button.addEventListener("click", () => selectVisualRegion("whole", Number(button.dataset.visualRecovery))));
   if (scrollToBottom) requestAnimationFrame(() => { elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight; });
+}
+
+function renderVisualEvidence(message) {
+  if (message.visualRoute === "VISUAL_GROUNDED") return `<div class="visual-provenance">Dựa trên vùng hình ở slide ${message.visualPage}</div>`;
+  const action = message.recoveryAction ? `<p>${escapeHtml(message.recoveryAction)}</p>` : "";
+  const widerButton = message.visualRoute === "NEED_WIDER_REGION"
+    ? `<button type="button" class="visual-recovery" data-visual-recovery="${message.visualPage}">Chọn toàn bộ sơ đồ</button>`
+    : "";
+  return `<div class="visual-recovery-card"><strong>${visualRouteLabel(message.visualRoute)}</strong>${action}${widerButton}</div>`;
+}
+
+function visualRouteLabel(route) {
+  return {
+    NEED_WIDER_REGION: "Cần vùng hình rộng hơn",
+    NEED_BETTER_IMAGE: "Cần hình rõ hơn",
+    INSUFFICIENT: "Chưa đủ căn cứ để trả lời",
+  }[route] || "Chưa thể phân tích vùng hình";
 }
 
 function showTyping() {
