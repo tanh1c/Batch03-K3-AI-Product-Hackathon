@@ -1,0 +1,83 @@
+.selection-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+}
+
+.selection-overlay[hidden] {
+  display: none;
+}
+
+.selection-overlay__candidate {
+  position: absolute;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.selection-overlay__candidate:disabled {
+  cursor: default;
+  pointer-events: none;
+}
+
+.selection-overlay__candidate:hover,
+.selection-overlay__candidate:focus-visible {
+  border-color: #0d72b8;
+  background: rgba(13, 114, 184, 0.1);
+  box-shadow: 0 0 0 3px rgba(13, 114, 184, 0.2);
+  outline: none;
+}
+
+.selection-overlay__candidate[data-candidate-kind="text"]:hover,
+.selection-overlay__candidate[data-candidate-kind="text"]:focus-visible {
+  border-color: #8a5a00;
+  background: rgba(255, 187, 51, 0.12);
+  box-shadow: 0 0 0 3px rgba(255, 187, 51, 0.2);
+}
+
+.selection-overlay__candidate[data-candidate-kind="vector"]:hover,
+.selection-overlay__candidate[data-candidate-kind="vector"]:focus-visible {
+  border-color: #087456;
+  background: rgba(8, 116, 86, 0.1);
+  box-shadow: 0 0 0 3px rgba(8, 116, 86, 0.2);
+}
+
+.selection-overlay__label {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  max-width: calc(100% - 12px);
+  transform: translateX(-50%);
+  overflow: hidden;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(7, 85, 145, 0.94);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+  opacity: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: opacity 160ms ease;
+}
+
+.selection-overlay__candidate:hover .selection-overlay__label,
+.selection-overlay__candidate:focus-visible .selection-overlay__label {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .selection-overlay__candidate,
+  .selection-overlay__label {
+    transition: none;
+  }
+}
