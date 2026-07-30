@@ -30,6 +30,9 @@ app.get("/snip.mjs", (_request, response) => {
 app.get("/pdf-context.mjs", (_request, response) => {
   response.sendFile(path.join(__dirname, "public/pdf-context.mjs"));
 });
+app.get("/visual-request.mjs", (_request, response) => {
+  response.sendFile(path.join(__dirname, "src/visual-request.mjs"));
+});
 app.get("/favicon.ico", (_request, response) => response.sendStatus(204));
 app.use(express.static(path.join(__dirname, "public")));
 
