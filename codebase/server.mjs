@@ -14,7 +14,7 @@ const provider = resolveAiProvider();
 
 app.disable("x-powered-by");
 app.use(express.json({ limit: "10mb" }));
-app.use("/vendor", express.static(path.join(__dirname, "node_modules/pdfjs-dist/build"), {
+app.use("/vendor", express.static(path.join(__dirname, "node_modules/pdfjs-dist/legacy/build"), {
   immutable: true,
   maxAge: "7d",
 }));
