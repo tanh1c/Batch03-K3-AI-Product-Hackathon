@@ -1,7 +1,7 @@
 import * as pdfjsLib from "/vendor/pdf.mjs";
 import { toPixelBounds } from "/geometry.mjs";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = "/vendor/pdf.worker.mjs";
+pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf-worker-compat.mjs";
 
 const VISUAL_REGIONS = {
   left: { label: "Nhánh Machine Learning", x: 0.057, y: 0.185, width: 0.406, height: 0.648 },
