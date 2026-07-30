@@ -1,4 +1,4 @@
-# AI SPEC — Visual Context Rescue · Nhóm [ĐIỀN TÊN NHÓM] · Zone [ĐIỀN ZONE]
+# AI SPEC — Visual Context Rescue · Nhóm F2 · Lab D305
 
 Hướng: [x] A — VLearn  [ ] B — Trợ lý Học viên  [ ] C — Làn mở  
 Loại: [x] Tối ưu tính năng có sẵn  [ ] Tính năng mới
@@ -97,7 +97,7 @@ Các case tương ứng nằm trong `eval/golden-set.json` (`H01`–`H08`).
 
 ### Golden set
 
-`eval/golden-set.json`: 20 case gồm 8 hard (2 cho mỗi lớp), 9 ordinary, 3 rare; 10 case phát triển từ 5 turn chatlog thật qua mã C/T ẩn danh.
+`eval/golden-set.json`: 20 case gồm 8 hard (2 cho mỗi lớp), 9 ordinary, 3 rare; 12 case phát triển từ 5 turn chatlog thật qua mã C/T ẩn danh.
 
 ### Quality bar — đã chốt trước run 01
 
@@ -115,18 +115,27 @@ Hai failure được giữ nguyên: `O08` false recovery (`NEED_WIDER_REGION` th
 
 ## §8. Phân công & kế hoạch
 
-> Nhóm phải điền tên/mã HV thật trước CP5; không tạo danh tính giả.
+- Nhóm: **F2 — Lab D305**.
+- Nhóm trưởng: **Vũ Tiến Dũng — 2A202602009**.
+
+| STT | Thành viên | Mã học viên |
+|---:|---|---|
+| 1 | Chu Nguyễn Tuấn Anh | 2A202601755 |
+| 2 | Đào Thị Trang | 2A202601809 |
+| 3 | Lê Minh Ngọc | 2A202601471 |
+| 4 | Vũ Tiến Dũng | 2A202602009 |
+| 5 | Nguyễn Đức Chung | 2A202601705 |
 
 | Phần | Owner |
 |---|---|
-| Spec | [ĐIỀN TÊN] |
-| Evidence/mining | [ĐIỀN TÊN] |
-| Prompt/eval | [ĐIỀN TÊN] |
-| Code | [ĐIỀN TÊN] |
-| Validation | [ĐIỀN TÊN] |
-| Demo/slides | [ĐIỀN TÊN] |
+| Spec | Vũ Tiến Dũng |
+| Evidence/mining | Đào Thị Trang |
+| Prompt/eval | Lê Minh Ngọc |
+| Code | Chu Nguyễn Tuấn Anh |
+| Validation | Chu Nguyễn Tuấn Anh |
+| Demo/slides | Nguyễn Đức Chung |
 
-- Willing users: [ĐIỀN ÍT NHẤT 3 TÊN THẬT].
+- Willing users đã khai từ CP1 và tham gia validation: **Nguyễn Thị Hải Yến (V01), Nguyễn Hoàng Biên (V02), Trần Xuân Lộc (V03)** — đều là người thử ngoài nhóm.
 - Validation: 5 người ngoài nhóm thực hiện task không được hướng dẫn; hỏi 3 câu trong `validation/protocol.md`; owner ghi quote nguyên văn.
 - Multi-prototype: không làm để giữ scope; automatic segmentation C chỉ là stretch sau eval và validation.
 
@@ -138,4 +147,4 @@ Hai failure được giữ nguyên: `O08` false recovery (`NEED_WIDER_REGION` th
 | 30/07/2026 | Thêm intrinsic size 960×540 cho SVG | Live failure: crop 122×110 làm model báo ảnh quá nhỏ |
 | 30/07/2026 | Bắt buộc output tiếng Việt | Live recovery từng trả tiếng Anh |
 | 30/07/2026 | Giữ hai failure run 01, không sửa số | Rubric yêu cầu bảng trung thực; cả hai fail là sai routing recovery, không hallucination |
-| [SAU VALIDATION] | [ĐIỀN THAY ĐỔI/GIỮ NGUYÊN] | Trỏ đến feedback ID trong `validation/feedback-log.md` |
+| 30/07/2026 | Quyết định làm vùng hình dễ nhận ra hơn và thêm câu hỏi gợi ý ngắn | V01–V05: 2/5 khó nhận ra vùng bấm và 2/5 không rõ nên hỏi gì |
