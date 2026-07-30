@@ -1,5 +1,6 @@
 import * as pdfjsLib from "/vendor/pdf.mjs";
 import { toPixelBounds } from "/geometry.mjs";
+import { circlePointsToBounds, createSelection } from "/selection-geometry.mjs";
 import { createSnipSelection } from "/snip.mjs";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = "/vendor/pdf.worker.mjs";
@@ -936,9 +937,19 @@ function positionPopover(popover, x, y) {
 function showRegionPopover(pageNumber, annotation) {
   const paper = getPageShell(pageNumber)?.querySelector(".page-paper");
   if (!paper || !annotation.points?.length) return;
+  const selection = createSelection({
+    pageNumber,
+    source: "circle",
+    bounds: circlePointsToBounds(annotation.points, 0.025),
+    label: "Vùng khoanh",
+  });
   hideHighlightPopover();
   hideSelectionMenu();
-  state.activeRegion = { page: pageNumber, id: ensureAnnotationId(annotation) };
+  state.activeRegion = {
+    page: pageNumber,
+    id: ensureAnnotationId(annotation),
+    selection,
+  };
   elements.regionTitle.textContent = `Vùng khoanh Trang ${pageNumber}`;
   elements.regionPopover.classList.remove("hidden");
   const paperBounds = paper.getBoundingClientRect();
