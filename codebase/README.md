@@ -13,7 +13,17 @@ Prototype trình đọc PDF và trợ giảng AI theo ngữ cảnh, tái hiện 
 - Menu ngữ cảnh khi bôi đen chữ trong slide mẫu hoặc nhấp chuột phải vào trang.
 - Tutor tìm các trang liên quan, trả lời kèm nguồn và cho phép nhấn nguồn để quay lại trang.
 - Chế độ sáng/tối và lưu ghi chú, annotation, theme bằng `localStorage`.
-- Chế độ Tutor demo hoạt động khi chưa có API key; tự chuyển sang AI thật khi server có key.
+- Hỗ trợ OpenAI, OpenRouter, Google Gemini trực tiếp và local 9router; Tutor demo hoạt động khi provider đã chọn chưa được cấu hình.
+- Ở slide mẫu có sơ đồ, chọn nhánh hoặc toàn bộ vùng hình để gửi câu hỏi tới Visual Tutor; câu trả lời hiển thị provenance theo slide và hướng dẫn chọn vùng rộng hơn khi chưa đủ ngữ cảnh.
+- Visual Tutor gửi ảnh crop PNG tối thiểu tới server; trace chỉ lưu metadata đã băm, không lưu câu hỏi gốc hoặc ảnh.
+
+### Visual Tutor
+
+Visual Tutor có hợp đồng bốn route: `VISUAL_GROUNDED`, `NEED_WIDER_REGION`, `NEED_BETTER_IMAGE`, `INSUFFICIENT`. Chỉ route grounded có `answer`; các route phục hồi phải có `reason` và `recovery_action` cụ thể. Mô hình được cấu hình cho Visual Tutor phải hỗ trợ ảnh và structured JSON output.
+
+Luồng MVP hiện hỗ trợ chọn vùng bằng nút trên slide demo. Tự động quét toàn bộ slide để phát hiện vùng ảnh chưa nằm trong phạm vi MVP.
+
+Credentials chỉ được đọc ở server và không xuất hiện trong trace hoặc browser. VLearn không tự fallback sang provider khác; nếu dùng combo model, fallback bên trong 9router thuộc quyền kiểm soát của gateway.
 
 ## Chạy local
 
@@ -33,24 +43,50 @@ Trong lúc phát triển, có thể dùng:
 npm run dev
 ```
 
-## Bật Tutor AI thật
+## Chọn AI provider
 
-Sao chép `.env.example` thành `.env`, sau đó cấu hình:
+Sao chép `.env.example` thành `.env`. Mặc định ứng dụng dùng local 9router:
 
 ```dotenv
-OPENAI_API_KEY=your_api_key_here
-OPENAI_MODEL=gpt-5.6-terra
+AI_PROVIDER=9router
+NINEROUTER_URL=http://localhost:20128
+NINEROUTER_KEY=
+NINEROUTER_MODEL=gc/gemini-2.5-flash
 PORT=3000
 ```
 
-Khởi động lại bằng `npm start`. API key chỉ được đọc ở `server.mjs`, không được gửi xuống trình duyệt. Server gọi OpenAI Responses API và yêu cầu câu trả lời chỉ dựa trên ngữ cảnh PDF, kèm trích dẫn `[Trang N]`.
+`NINEROUTER_URL` là gateway root; ứng dụng tự gọi `/v1/chat/completions`. `NINEROUTER_KEY` có thể để trống khi local gateway tắt auth.
+
+Để dùng OpenAI hoặc OpenRouter, đổi `AI_PROVIDER` và cấu hình đúng credential/model tương ứng:
+
+```dotenv
+AI_PROVIDER=openai
+OPENAI_API_KEY=your_api_key_here
+OPENAI_MODEL=gpt-5.6-terra
+```
+
+```dotenv
+AI_PROVIDER=openrouter
+OPENROUTER_API_KEY=your_api_key_here
+OPENROUTER_MODEL=openai/gpt-4o-mini
+```
+
+Để gọi Google Gemini trực tiếp:
+
+```dotenv
+AI_PROVIDER=gemini
+GEMINI_API_KEY=your_api_key_here
+GEMINI_MODEL=gemini-2.5-flash
+```
+
+Khởi động lại bằng `npm start`. Credentials chỉ tồn tại ở server. OpenAI dùng Responses API; OpenRouter và 9router dùng Chat Completions; Gemini dùng `generateContent`. Tất cả nhận cùng document-only instructions và giữ nguyên response contract của frontend.
 
 ## Cách Tutor dùng tài liệu
 
 1. PDF được mở và trích xuất văn bản hoàn toàn ở trình duyệt.
 2. Khi người học đặt câu hỏi, frontend xếp hạng các trang theo từ khóa và trang đang xem.
 3. Tối đa bốn đoạn văn bản liên quan được gửi tới `/api/tutor`.
-4. Nếu có API key, server gọi mô hình AI; nếu không, server trả phản hồi demo có nhãn rõ ràng.
+4. Nếu provider đã chọn được cấu hình, server gọi mô hình AI; nếu không, server trả phản hồi demo có nhãn rõ ràng.
 
 ## Phạm vi prototype
 
@@ -64,6 +100,7 @@ Khởi động lại bằng `npm start`. API key chỉ được đọc ở `serv
 
 ```powershell
 npm run check
+npm test
 ```
 
-Endpoint kiểm tra server: `GET /api/health`.
+Endpoint kiểm tra server: `GET /api/health`. Visual endpoint: `POST /api/analyze`; endpoint trả `503` khi provider đã chọn chưa được cấu hình.
