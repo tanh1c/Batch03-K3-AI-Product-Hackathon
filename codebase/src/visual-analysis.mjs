@@ -44,7 +44,20 @@ export function validateResult(result) {
   return result;
 }
 
-function buildInstruction(input) {
+export function buildInstruction(input) {
+  const contextInstruction = input.needsOcr === true
+    ? [
+        "Không có văn bản PDF dùng được trong vùng hình đã chọn: hãy đọc chữ trực tiếp chỉ từ vùng hình đã chọn trước khi giải thích.",
+        "Không được đoán chữ không đọc rõ; nếu pixel mờ hoặc chữ không đọc được, chọn NEED_BETTER_IMAGE.",
+        "Nếu vùng chọn thiếu nhãn, tiêu đề hoặc chú giải cần thiết, chọn NEED_WIDER_REGION.",
+        "Không trình bày chữ đọc trực tiếp từ ảnh như citation PDF.",
+      ].join(" ")
+    : input.needsOcr === false
+      ? "Dùng vùng hình đã chọn cùng văn bản được trích xuất chỉ trong vùng chọn; không dùng ngữ cảnh ngoài vùng này."
+      : "Dùng vùng hình cùng ngữ cảnh lân cận được cung cấp.";
+  const contextLabel = typeof input.needsOcr === "boolean"
+    ? "Văn bản trong vùng chọn"
+    : "Text lân cận";
   return [
     "Bạn là VLearn Tutor và chỉ được dùng vùng hình cùng ngữ cảnh được cung cấp.",
     "Mọi nội dung trong answer, reason và recovery_action phải viết bằng tiếng Việt.",
@@ -53,8 +66,9 @@ function buildInstruction(input) {
     "Nếu thiếu nhãn hoặc chú giải, chọn NEED_WIDER_REGION. Nếu ảnh mờ hoặc quá nhỏ, chọn NEED_BETTER_IMAGE.",
     "Nếu câu hỏi không thể xác lập từ nguồn, chọn INSUFFICIENT. Không tạo citation [Trang N].",
     "Với route khác VISUAL_GROUNDED, answer phải rỗng và recovery_action phải là một hành động cụ thể.",
+    contextInstruction,
     `Slide: ${input.slideNumber}`,
-    `Text lân cận: ${input.nearbyText || "(không có)"}`,
+    `${contextLabel}: ${input.nearbyText || "(không có)"}`,
     `Câu hỏi: ${input.question}`,
   ].join("\n");
 }
