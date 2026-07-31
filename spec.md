@@ -69,15 +69,15 @@ API key chỉ tồn tại phía server. Client không tự động gọi Tutor k
 
 ### §4b. HAX/PAIR
 
-| Nguyên tắc | Áp cụ thể vào prototype |
-|---|---|
-| G1 — Làm rõ hệ thống làm được gì | Overlay/nút chọn nói rõ Tutor đang nhận một vùng hình trên slide demo, không phải toàn bộ PDF. |
-| G2 — Làm rõ nó làm tốt đến đâu | Route và provenance `Dựa trên vùng hình ở slide N` cho biết nguồn và giới hạn câu trả lời. |
-| G10 — Thu hẹp khi nghi ngờ | `NEED_WIDER_REGION`, `NEED_BETTER_IMAGE`, `INSUFFICIENT` thay cho đoán. |
-| G9 — Sửa dễ dàng | `NEED_WIDER_REGION` cho user chọn toàn bộ sơ đồ rồi gửi lại; user luôn có thể đổi vùng/câu hỏi. |
-| G11 — Giải thích vì sao | Mọi route bắt buộc có `reason`; recovery bắt buộc có `recovery_action`. |
-| PAIR Explainability + Trust | Grounded answer gắn slide và vùng hình, không tạo citation text giả. |
-| PAIR User control + Accessibility | Candidate overlay dùng native button có ARIA/keyboard focus; learner-control UI hiển thị route và cho phép chọn lại bằng Snip thay vì tự mở rộng sang toàn trang. |
+| Nguyên tắc | Áp cụ thể vào prototype | Vị trí trong prototype |
+|---|---|---|
+| G1 — Làm rõ hệ thống làm được gì | Overlay/nút chọn nói rõ Tutor đang nhận một vùng hình trên slide demo, không phải toàn bộ PDF. | `codebase/public/app.js`: `updateChrome()`; `codebase/public/selection-overlay.mjs` |
+| G2 — Làm rõ nó làm tốt đến đâu | Route và provenance `Dựa trên vùng hình ở slide N` cho biết nguồn và giới hạn câu trả lời. | `codebase/public/app.js`: `renderVisualEvidence()` |
+| G10 — Thu hẹp khi nghi ngờ | `NEED_WIDER_REGION`, `NEED_BETTER_IMAGE`, `INSUFFICIENT` thay cho đoán. | `codebase/src/visual-analysis.mjs`: `ROUTES`, `validateResult()` |
+| G9 — Sửa dễ dàng | `NEED_WIDER_REGION` cho user chọn toàn bộ sơ đồ rồi gửi lại; user luôn có thể đổi vùng/câu hỏi. | `codebase/public/app.js`: `clearComposerSelection()`, `recoverPdfSelectionWithSnip()` |
+| G11 — Giải thích vì sao | Mọi route bắt buộc có `reason`; recovery bắt buộc có `recovery_action`. | `codebase/src/visual-analysis.mjs`: `RESULT_SCHEMA`, `validateResult()` |
+| PAIR Explainability + Trust | Grounded answer gắn slide và vùng hình, không tạo citation text giả. | `codebase/public/app.js`: `renderVisualEvidence()`; `codebase/src/visual-analysis.mjs`: `buildInstruction()` |
+| PAIR User control + Accessibility | Candidate overlay dùng native button có ARIA/keyboard focus; learner-control UI hiển thị route và cho phép chọn lại bằng Snip thay vì tự mở rộng sang toàn trang. | `codebase/public/selection-overlay.mjs`, `codebase/public/selection-overlay.css`; `codebase/public/app.js`: `sendQuestion()`, `persistState()` |
 
 ## §5. Kiểu lỗi — 4 lớp chỗ khó + kịch bản
 
@@ -132,7 +132,7 @@ Direction C giữ nguyên ba route mismatch: `C07` và `C10` trả `NEED_WIDER_R
 
 ### Xác minh C8/C9 hiện tại
 
-- Automated suite: **123/123 test pass, 0 fail**; syntax check và `git diff --check` pass.
+- Automated suite: **140/140 test pass, 0 fail**; syntax check và `git diff --check` pass.
 - PDF thật 49 trang: candidate lazy xuất hiện ở trang 2, 6 và 9; text/image/vector vẫn tách, vector map sang `detected-image`.
 - Candidate click, Snip creation, Circle creation và recovery click tạo **0** request AI; mỗi nguồn chỉ gửi sau form submit và không đi qua `/api/tutor`.
 - Circle crop chỉ dùng `.pdf-canvas`; outline chuẩn hóa giữ nguyên ở zoom 60%, 90% và 150%; đổi tài liệu xóa overlay/selection cũ.
@@ -158,7 +158,7 @@ Direction C giữ nguyên ba route mismatch: `C07` và `C10` trả `NEED_WIDER_R
 | Chu Nguyễn Tuấn Anh | C0 selection contract, C1 Snip, C2 PDF context; review và tích hợp nhánh; validation |
 | Đào Thị Trang | Evidence/mining; C3 image/vector detector và C4 text-region detector |
 | Lê Minh Ngọc | Prompt/eval; AI provider và Visual Tutor contract |
-| Vũ Tiến Dũng | Nhóm trưởng; spec; PDF reader và luồng frontend/demo |
+| Vũ Tiến Dũng | Nhóm trưởng; spec; C7 OCR/AI packaging; điều phối frontend/demo |
 | Nguyễn Đức Chung | C5 accessible selection overlay; kiểm thử learner-control UI cho 4 AI route, recovery về Snip và crop không chứa annotation; demo/slides |
 
 - Willing users đã khai từ CP1 và tham gia validation: **Nguyễn Thị Hải Yến (V01), Nguyễn Hoàng Biên (V02), Trần Xuân Lộc (V03)** — đều là người thử ngoài nhóm.

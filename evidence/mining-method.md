@@ -36,6 +36,13 @@ Hai ứng viên đối chiếu dùng rule độc lập trên câu hỏi trực t
 
 Số liệu canonical nằm trong `evidence/mining-output.json`; bảng trên chỉ là bản diễn giải ngắn.
 
+## Kiểm tra chéo
+
+- Người kiểm tra độc lập: **Đào Thị Trang** và **Vũ Tiến Dũng**.
+- Mẫu kiểm tra: 20 đơn vị `turn_id` hoàn chỉnh, áp dụng cùng quy tắc phân loại và tiêu chí loại nêu trên.
+- Kết quả: hai người không có bất đồng về việc áp dụng rule trên mẫu kiểm tra.
+- Đây là sample cross-check để kiểm tra khả năng tái lập phương pháp; kết quả không thay đổi mẫu số, số hit hoặc output canonical.
+
 ## Năm ví dụ ngắn, giữ mã ẩn danh
 
 | Nguồn | Quote student tối thiểu | Kết quả Tutor |
