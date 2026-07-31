@@ -77,6 +77,7 @@ API key chỉ tồn tại phía server. Client không tự động gọi Tutor k
 | G9 — Sửa dễ dàng | `NEED_WIDER_REGION` cho user chọn toàn bộ sơ đồ rồi gửi lại; user luôn có thể đổi vùng/câu hỏi. |
 | G11 — Giải thích vì sao | Mọi route bắt buộc có `reason`; recovery bắt buộc có `recovery_action`. |
 | PAIR Explainability + Trust | Grounded answer gắn slide và vùng hình, không tạo citation text giả. |
+| PAIR User control + Accessibility | Candidate overlay dùng native button có ARIA/keyboard focus; learner-control UI hiển thị route và cho phép chọn lại bằng Snip thay vì tự mở rộng sang toàn trang. |
 
 ## §5. Kiểu lỗi — 4 lớp chỗ khó + kịch bản
 
@@ -131,10 +132,11 @@ Direction C giữ nguyên ba route mismatch: `C07` và `C10` trả `NEED_WIDER_R
 
 ### Xác minh C8/C9 hiện tại
 
-- Automated suite: **115/115 test pass, 0 fail**; syntax check và `git diff --check` pass.
+- Automated suite: **123/123 test pass, 0 fail**; syntax check và `git diff --check` pass.
 - PDF thật 49 trang: candidate lazy xuất hiện ở trang 2, 6 và 9; text/image/vector vẫn tách, vector map sang `detected-image`.
 - Candidate click, Snip creation, Circle creation và recovery click tạo **0** request AI; mỗi nguồn chỉ gửi sau form submit và không đi qua `/api/tutor`.
 - Circle crop chỉ dùng `.pdf-canvas`; outline chuẩn hóa giữ nguyên ở zoom 60%, 90% và 150%; đổi tài liệu xóa overlay/selection cũ.
+- C5 selection overlay có 6 automated tests cho normalized bounds, trạng thái bật/tắt, callback chọn candidate, validation ID/confidence/kind, lifecycle cleanup và CSS focus/pointer-event.
 - Direction B vẫn giữ request shape cũ; `localStorage` không chứa crop, selection, bounded text, raw question hoặc chat; mobile 390 px không overflow; browser page error bằng 0.
 - Browser assertions chứng minh integration và wrong-page behavior cho kịch bản đã chạy, không thay thế usability study. Năm phiếu hiện có chỉ đánh giá Direction B; chưa có validation người dùng mới cho Direction C.
 
@@ -157,7 +159,7 @@ Direction C giữ nguyên ba route mismatch: `C07` và `C10` trả `NEED_WIDER_R
 | Đào Thị Trang | Evidence/mining; C3 image/vector detector và C4 text-region detector |
 | Lê Minh Ngọc | Prompt/eval; AI provider và Visual Tutor contract |
 | Vũ Tiến Dũng | Nhóm trưởng; spec; PDF reader và luồng frontend/demo |
-| Nguyễn Đức Chung | C5 accessible selection overlay, C6 Circle bridge; demo/slides |
+| Nguyễn Đức Chung | C5 accessible selection overlay; kiểm thử learner-control UI cho 4 AI route, recovery về Snip và crop không chứa annotation; demo/slides |
 
 - Willing users đã khai từ CP1 và tham gia validation: **Nguyễn Thị Hải Yến (V01), Nguyễn Hoàng Biên (V02), Trần Xuân Lộc (V03)** — đều là người thử ngoài nhóm.
 - Validation: 5 người ngoài nhóm thực hiện task không được hướng dẫn; hỏi 3 câu trong `validation/protocol.md`; owner ghi quote nguyên văn.
@@ -175,4 +177,4 @@ Direction C giữ nguyên ba route mismatch: `C07` và `C10` trả `NEED_WIDER_R
 | 31/07/2026 | Hoàn tất C6–C8 end-to-end trên PDF upload | Nối Circle/detector/overlay với explicit-submit crop và Visual Tutor, không tự gửi cả trang |
 | 31/07/2026 | Đóng băng Direction C v1 và chạy C9 | 9/12, zero unsupported grounded nhưng chưa đạt bar 10/12; giữ nguyên ba failure |
 | 31/07/2026 | Chạy lại Direction B hậu-C7 | 19/20 nhưng R02 hallucinate từ ảnh trắng nên hard bar chưa đạt |
-| 31/07/2026 | Bổ sung browser assertions và 115/115 automated tests | Cung cấp bằng chứng kỹ thuật; không coi là usability validation Direction C |
+| 31/07/2026 | Bổ sung browser assertions và 123/123 automated tests | Cung cấp bằng chứng kỹ thuật; không coi là usability validation Direction C |

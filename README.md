@@ -17,7 +17,7 @@ Prototype giúp học viên hỏi AI về sơ đồ, hình ảnh và vùng nội
 | 2 | Đào Thị Trang | `2A202601809` | Evidence/mining; C3 image/vector detector và C4 text-region detector |
 | 3 | Lê Minh Ngọc | `2A202601471` | Prompt/eval; AI provider và Visual Tutor contract |
 | 4 | Vũ Tiến Dũng | `2A202602009` | Nhóm trưởng; spec; PDF reader và luồng frontend/demo |
-| 5 | Nguyễn Đức Chung | `2A202601705` | C5 accessible selection overlay, C6 Circle bridge; demo/slides |
+| 5 | Nguyễn Đức Chung | `2A202601705` | C5 accessible selection overlay; kiểm thử learner-control UI cho 4 AI route, recovery về Snip và crop không chứa annotation; demo/slides |
 
 Mỗi thành viên phải giải thích được quyết định, giới hạn và cách kiểm thử phần có tên mình theo vibe-coding rule.
 
@@ -50,7 +50,7 @@ VLearn Tutor đã đọc được text được chọn nhưng chưa nhận đún
 - Direction B Run 01 lịch sử: **18/20 = 90%**, unsupported grounded **0**, đạt bar.
 - Direction C Run 01 với `openai/o4-mini`: **9/12 = 75%**, unsupported grounded **0**, **chưa đạt** bar 10/12; ba case recovery phân loại sai route.
 - Direction B hậu-C7: **19/20 = 95%** nhưng **chưa đạt hard bar** vì case ảnh trắng `R02` bị trả `VISUAL_GROUNDED` với nội dung QEMU/GDB không có trong fixture.
-- Automated suite hiện tại: **115/115 pass**; syntax và diff checks pass.
+- Automated suite hiện tại: **123/123 pass**; syntax và diff checks pass.
 - Browser C8 với PDF thật 49 trang: candidate xuất hiện lazy ở trang 2/6/9; Snip, Circle, candidate, zoom 60/90/150%, recovery, đổi tài liệu, Direction B, privacy và mobile overflow đều pass; không có page error.
 - Validation 5 người chỉ đo Direction B: **5/5** hoàn thành task; chưa có usability study mới cho Direction C.
 
