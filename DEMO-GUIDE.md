@@ -224,15 +224,30 @@ Ngoài Visual Tutor, prototype còn có:
 
 Chỉ demo nhanh; không để các công cụ này làm lu mờ central AI decision.
 
-### 3.13. Quyền riêng tư
+### 3.13. Đề xuất ôn tập cuối tài liệu
+
+Với PDF đã tải lên:
+
+1. Cuộn đến cuối tài liệu để hiện đề xuất tóm tắt.
+2. Chọn `Để sau` để đóng mà không tạo request; tải lại PDF sẽ cho phép đề xuất xuất hiện lại.
+3. Chọn `Tóm tắt bài học` để gửi tối đa 80 trang văn bản đã trích xuất, mỗi trang tối đa 5.000 ký tự, tới `/api/summary`.
+4. Tutor hiển thị bản tóm tắt, tối đa tám điểm cần nhớ và nút quay tới trang nguồn.
+5. Các quote khớp nguyên văn được tô teal để ôn tập; highlight của learner vẫn là màu vàng và được quản lý riêng.
+6. Từ popover highlight màu vàng, chọn `Hỏi Tutor` để gửi đúng đoạn text và số trang qua `/api/tutor`.
+
+Điểm cần nói:
+
+> Chỉ thao tác chấp nhận mới gửi văn bản; hệ thống không gửi pixel slide, không dùng quota câu hỏi thường và không lưu summary, dismissal hoặc AI highlight vào localStorage.
+
+### 3.14. Quyền riêng tư
 
 Có thể trình bày bằng lời hoặc DevTools:
 
 - API key chỉ tồn tại phía server.
 - Candidate detection chạy local.
-- Candidate click, Snip và Circle không tự gọi AI.
-- Chỉ explicit submit mới gọi `/api/analyze`.
-- Không lưu crop, bounded text, raw question, chat hoặc selection vào `localStorage`.
+- Candidate click, Snip, Circle và việc cuộn đến cuối tài liệu không tự gọi AI.
+- Chỉ explicit submit mới gọi `/api/analyze`; chỉ explicit accept mới gọi `/api/summary`.
+- Không lưu crop, bounded text, raw question, chat, summary, prompt dismissal, AI highlight hoặc selection vào `localStorage`.
 - Không persist raw crop, OCR text hoặc upstream response body trong trace.
 - Trace chỉ giữ metadata đã redacted.
 
@@ -293,7 +308,7 @@ Nói ngắn gọn:
 - Direction C Run 01: `9/12`, unsupported grounded `0`, chưa đạt bar `10/12`.
 - Direction B lịch sử: `18/20`, unsupported grounded `0`.
 - Direction B hậu-C7: `19/20` nhưng có một unsupported grounded trên ảnh trắng nên không đạt hard bar.
-- Automated suite hiện tại: `123/123` pass.
+- Automated suite hiện tại: `140/140` pass.
 - Validation 5 người hiện chỉ áp dụng cho Direction B; chưa có usability study mới cho Direction C.
 
 ## 5. Nếu chỉ có 3 phút

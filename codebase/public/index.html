@@ -97,6 +97,12 @@
             <div class="pages-host" id="pagesHost"></div>
           </div>
 
+          <section id="lessonSummaryPrompt" class="lesson-summary-prompt" aria-live="polite" hidden>
+            <div><strong>Ôn nhanh tài liệu?</strong><span>VLearn sẽ gửi văn bản đã trích xuất để tóm tắt, không gửi toàn bộ pixel của slide.</span></div>
+            <button type="button" class="primary-button" data-summary-action="accept">Tóm tắt bài học</button>
+            <button type="button" class="summary-dismiss" data-summary-action="dismiss">Để sau</button>
+          </section>
+
           <nav class="page-navigator" aria-label="Điều hướng trang">
             <button class="icon-button" id="previousPageButton" aria-label="Trang trước" data-icon="chevron-left"></button>
             <span>Trang <strong id="currentPageLabel">1</strong> / <span id="totalPagesLabel">5</span></span>
@@ -140,6 +146,7 @@
         <div class="selection-preview"><span>ĐOẠN ĐÃ CHỌN</span><p id="highlightSelectedText"></p></div>
         <textarea id="highlightNoteInput" rows="3" maxlength="1000" placeholder="Viết ghi chú cho đoạn highlight…"></textarea>
         <footer>
+          <button class="highlight-tutor-button" data-highlight-action="tutor"><span data-icon="bot"></span>Hỏi Tutor</button>
           <button data-highlight-action="delete-note"><span data-icon="trash"></span>Xóa note</button>
           <button data-highlight-action="delete-highlight"><span data-icon="trash"></span>Xóa highlight</button>
         </footer>

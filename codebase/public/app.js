@@ -1,5 +1,5 @@
 import * as pdfjsLib from "/vendor/pdf.mjs";
-import { toPixelBounds } from "/geometry.mjs";
+import { findExactQuoteRects, toPixelBounds } from "/geometry.mjs";
 import { extractPdfContext } from "/pdf-context.mjs";
 import { detectPageRegions } from "/pdf-regions.mjs";
 import { circlePointsToBounds, createSelection } from "/selection-geometry.mjs";
@@ -105,6 +105,11 @@ const state = {
   pdfSelectionAnnotationId: null,
   wholeSlideContext: null,
   wholeSlideDisabledQuestion: null,
+  summaryDismissed: false,
+  summaryAccepted: false,
+  summaryLoading: false,
+  summaryController: null,
+  aiHighlights: {},
   suggestionsEnabled: false,
   pdfWorkEpoch: 0,
   pdfExtractionController: null,
@@ -133,6 +138,7 @@ const elements = {
   readerArea: document.querySelector("#readerArea"),
   readerScroll: document.querySelector("#readerScroll"),
   pagesHost: document.querySelector("#pagesHost"),
+  lessonSummaryPrompt: document.querySelector("#lessonSummaryPrompt"),
   loadingState: document.querySelector("#loadingState"),
   loadingDetail: document.querySelector("#loadingDetail"),
   tutorPanel: document.querySelector("#tutorPanel"),
@@ -207,6 +213,8 @@ function bindEvents() {
   elements.moreToolsButton.addEventListener("click", toggleMoreToolsPanel);
   elements.regionSuggestionsButton.addEventListener("click", () => setRegionSuggestions(!state.suggestionsEnabled));
   elements.clearComposerContext.addEventListener("click", clearComposerSelection);
+  elements.lessonSummaryPrompt.querySelector('[data-summary-action="accept"]').addEventListener("click", requestLessonSummary);
+  elements.lessonSummaryPrompt.querySelector('[data-summary-action="dismiss"]').addEventListener("click", dismissLessonSummaryPrompt);
   document.querySelector("#saveNoteButton").addEventListener("click", saveNote);
   document.querySelector("#aiStatusButton").addEventListener("click", () => showToast(state.aiConfigured ? `Tutor đã cấu hình ${state.aiProvider}/${state.aiModel}.` : `Tutor đang ở chế độ demo. Hãy cấu hình ${state.aiProvider || "AI provider"} trên server.`));
 
@@ -232,7 +240,7 @@ function bindEvents() {
 
   elements.readerScroll.addEventListener("scroll", () => {
     if (state.scrollFrame) return;
-    state.scrollFrame = requestAnimationFrame(() => { state.scrollFrame = null; updateCurrentPageFromScroll(); });
+    state.scrollFrame = requestAnimationFrame(() => { state.scrollFrame = null; updateCurrentPageFromScroll(); maybeShowLessonSummaryPrompt(); });
   }, { passive: true });
   elements.chatForm.addEventListener("submit", sendQuestion);
   elements.chatInput.addEventListener("input", handleComposerInput);
@@ -304,6 +312,7 @@ function renderLibrary() {
 async function activateDocument(id) {
   if (id === state.document.id) return;
   if (id === "demo-foundation") {
+    resetLessonSummaryState();
     invalidatePdfWork();
     cancelPdfRenders();
     clearVisualSelection();
@@ -390,6 +399,7 @@ async function handleFile(file) {
 }
 
 async function loadPdf(file, docMeta) {
+  resetLessonSummaryState();
   invalidatePdfWork();
   const epoch = state.pdfWorkEpoch;
   cancelPdfRenders();
@@ -918,6 +928,10 @@ function drawAnnotations(pageNumber, preview = null) {
       context.lineCap = "round"; context.lineJoin = "round"; context.stroke();
     }
   });
+  getAiHighlights(pageNumber).forEach((highlightRect) => {
+    context.fillStyle = "rgba(13, 148, 136, .32)";
+    context.fillRect(highlightRect.x * canvas.width, highlightRect.y * canvas.height, highlightRect.width * canvas.width, highlightRect.height * canvas.height);
+  });
 }
 
 function createAnnotationId() {
@@ -1125,6 +1139,18 @@ function handleHighlightPopoverAction(event) {
   const annotations = getAnnotations(active.page);
   const annotation = annotations.find((item) => item.id === active.id);
   if (!annotation) return hideHighlightPopover();
+  if (button.dataset.highlightAction === "tutor") {
+    state.selectionText = (annotation.text || "").slice(0, 800);
+    state.selectionPage = active.page;
+    state.currentPage = active.page;
+    state.tutorOpen = true;
+    state.wholeSlideContext = null;
+    elements.chatInput.value = "Giải thích đoạn mình đã highlight này.";
+    hideHighlightPopover();
+    updateCurrentPageClass(); updateWorkspace(); updateChrome(); autoGrowComposer();
+    setTimeout(() => elements.chatInput.focus(), 60);
+    return;
+  }
   if (button.dataset.highlightAction === "delete-note") {
     annotation.note = "";
     elements.highlightNoteInput.value = "";
@@ -1386,6 +1412,117 @@ function updateCurrentPageFromScroll() {
   setCurrentPage(nearest);
 }
 
+function maybeShowLessonSummaryPrompt() {
+  if (
+    state.document.type !== "pdf"
+    || state.pageTexts.length !== state.totalPages
+    || state.summaryDismissed
+    || state.summaryAccepted
+    || state.summaryLoading
+  ) {
+    elements.lessonSummaryPrompt.hidden = true;
+    return;
+  }
+  elements.lessonSummaryPrompt.hidden = elements.readerScroll.scrollTop + elements.readerScroll.clientHeight
+    < elements.readerScroll.scrollHeight - 90;
+}
+
+function dismissLessonSummaryPrompt() {
+  state.summaryDismissed = true;
+  elements.lessonSummaryPrompt.hidden = true;
+}
+
+async function requestLessonSummary() {
+  if (state.summaryLoading || state.summaryAccepted || state.document.type !== "pdf") return;
+  const pages = state.pageTexts.slice(0, 80).map((text, index) => ({
+    page: index + 1,
+    text: text.slice(0, 5000),
+  })).filter((item) => item.text);
+  if (!pages.length) return showToast("PDF này không có văn bản để tóm tắt.", "error");
+
+  const documentId = state.document.id;
+  const epoch = state.pdfWorkEpoch;
+  const controller = new AbortController();
+  state.summaryController?.abort();
+  state.summaryController = controller;
+  state.summaryLoading = true;
+  elements.lessonSummaryPrompt.hidden = true;
+  elements.lessonSummaryPrompt.querySelector('[data-summary-action="accept"]').disabled = true;
+
+  try {
+    const response = await fetch("/api/summary", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documentName: state.document.name, pages }),
+      signal: controller.signal,
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Chưa thể tóm tắt tài liệu.");
+    if (controller.signal.aborted || documentId !== state.document.id || epoch !== state.pdfWorkEpoch) return;
+
+    state.summaryAccepted = true;
+    state.tutorOpen = true;
+    state.chat.push({
+      role: "assistant",
+      answer: result.summary,
+      keyPoints: result.key_points || [],
+      mode: "summary",
+    });
+    updateWorkspace();
+    renderChat(true);
+    await applyLessonSummaryHighlights(result.key_points || [], { documentId, epoch, signal: controller.signal });
+  } catch (error) {
+    if (error?.name !== "AbortError") showToast(error.message, "error");
+  } finally {
+    if (state.summaryController === controller) {
+      state.summaryController = null;
+      state.summaryLoading = false;
+      elements.lessonSummaryPrompt.querySelector('[data-summary-action="accept"]').disabled = false;
+    }
+  }
+}
+
+async function applyLessonSummaryHighlights(keyPoints, owner) {
+  state.aiHighlights = {};
+  state.pdfPages.forEach((_page, index) => drawAnnotations(index + 1));
+  for (const point of keyPoints.slice(0, 8)) {
+    const pageNumber = Number(point.page);
+    if (!Number.isInteger(pageNumber) || !state.pdfPages[pageNumber - 1]) continue;
+    await renderPdfPage(pageNumber);
+    if (owner.signal.aborted || owner.documentId !== state.document.id || owner.epoch !== state.pdfWorkEpoch) return;
+    const paper = getPageShell(pageNumber)?.querySelector(".page-paper");
+    if (!paper) continue;
+    const bounds = paper.getBoundingClientRect();
+    const fragments = [...paper.querySelectorAll(".pdf-text-layer span")].map((span) => {
+      const rect = span.getBoundingClientRect();
+      return {
+        text: span.textContent,
+        x: (rect.left - bounds.left) / bounds.width,
+        y: (rect.top - bounds.top) / bounds.height,
+        width: rect.width / bounds.width,
+        height: rect.height / bounds.height,
+      };
+    });
+    const rects = findExactQuoteRects(fragments, point.quote);
+    if (rects.length) state.aiHighlights[pageNumber] = [...getAiHighlights(pageNumber), ...rects];
+    drawAnnotations(pageNumber);
+  }
+}
+
+function getAiHighlights(pageNumber) {
+  return state.aiHighlights[pageNumber] || [];
+}
+
+function resetLessonSummaryState() {
+  state.summaryController?.abort();
+  state.summaryController = null;
+  state.summaryDismissed = false;
+  state.summaryAccepted = false;
+  state.summaryLoading = false;
+  state.aiHighlights = {};
+  elements.lessonSummaryPrompt.hidden = true;
+}
+
 function setCurrentPage(pageNumber) {
   if (pageNumber === state.currentPage) return;
   state.currentPage = pageNumber;
@@ -1460,6 +1597,8 @@ async function checkApiHealth() {
 async function sendQuestion(event) {
   event.preventDefault();
   const question = elements.chatInput.value.trim();
+  const selectedText = state.selectionText;
+  const selectedPage = state.selectionPage;
   const pdfSelection = state.document.type === "pdf" && state.pdfSelection
     ? createSelection(state.pdfSelection)
     : null;
@@ -1493,7 +1632,7 @@ async function sendQuestion(event) {
     if (pdfSelection) await sendPdfVisualQuestion(question, pdfSelection);
     else if (visualSelection) await sendVisualQuestion(question, visualSelection);
     else if (wholeSlideContext) await sendPdfWholeSlideQuestion(question, wholeSlideContext.pageNumber);
-    else await sendTextQuestion(question);
+    else await sendTextQuestion(question, selectedText, selectedPage);
     state.questionCount += 1;
     persistState(); updateChrome();
   } catch (error) {
@@ -1508,12 +1647,12 @@ async function sendQuestion(event) {
   }
 }
 
-async function sendTextQuestion(question) {
+async function sendTextQuestion(question, selectedText = "", selectedPage = state.currentPage) {
   const contextPages = selectContextPages(question);
   const response = await fetch("/api/tutor", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question, documentName: state.document.name, currentPage: state.currentPage, contextPages }),
+    body: JSON.stringify({ question, documentName: state.document.name, currentPage: state.currentPage, contextPages, selectedText, selectedPage }),
   });
   const data = await response.json();
   if (!response.ok && !data.fallback) throw new Error(data.error || "Tutor chưa thể trả lời.");
@@ -1700,15 +1839,21 @@ function renderChat(scrollToBottom = false) {
   elements.chatMessages.innerHTML = state.chat.map((message) => {
     if (message.role === "user") return `<article class="message user"><div class="message-bubble">${escapeHtml(message.answer)}</div></article>`;
     const sources = message.citations?.length ? `<div class="source-block"><div class="source-title">${icon("book-open")} ${message.citations.length} nguồn tham khảo</div>${message.citations.map((source) => `<button class="source-card" data-source-page="${source.page}"><strong>TRANG ${source.page}</strong><span>${escapeHtml(source.excerpt || "Nội dung liên quan trong tài liệu")}</span></button>`).join("")}</div>` : "";
-    const confidence = message.mode === "system" || message.mode === "visual" ? "" : `<div class="confidence-row"><div class="confidence-bar"><span style="width:${message.confidence || 0}%"></span></div><span>${message.confidence || 0}% · ${message.confidence >= 80 ? "Tin cậy cao" : message.confidence >= 60 ? "Nên kiểm tra nguồn" : "Thiếu căn cứ"}</span></div>`;
-    const mode = message.mode === "demo" ? '<span class="message-mode">Phản hồi demo</span>' : message.mode === "live" ? '<span class="message-mode" style="background:#dcf8ef;color:#087456">AI LIVE</span>' : message.mode === "visual" ? '<span class="message-mode visual-mode">VISUAL AI</span>' : "";
+    const confidence = message.mode === "system" || message.mode === "visual" || message.mode === "summary" ? "" : `<div class="confidence-row"><div class="confidence-bar"><span style="width:${message.confidence || 0}%"></span></div><span>${message.confidence || 0}% · ${message.confidence >= 80 ? "Tin cậy cao" : message.confidence >= 60 ? "Nên kiểm tra nguồn" : "Thiếu căn cứ"}</span></div>`;
+    const mode = message.mode === "demo" ? '<span class="message-mode">Phản hồi demo</span>' : message.mode === "live" ? '<span class="message-mode" style="background:#dcf8ef;color:#087456">AI LIVE</span>' : message.mode === "visual" ? '<span class="message-mode visual-mode">VISUAL AI</span>' : message.mode === "summary" ? '<span class="message-mode summary-mode">ÔN TẬP</span>' : "";
     const visual = message.mode === "visual" ? renderVisualEvidence(message) : "";
-    return `<article class="message assistant"><div class="assistant-label">${icon("bot")} VLEARN TUTOR</div><div class="message-bubble">${formatAnswer(message.answer)}</div>${mode}${visual}${sources}${confidence}</article>`;
+    const keyPoints = message.mode === "summary" ? renderSummaryKeyPoints(message.keyPoints) : "";
+    return `<article class="message assistant${message.mode === "summary" ? " summary-message" : ""}"><div class="assistant-label">${icon("bot")} VLEARN TUTOR</div><div class="message-bubble">${formatAnswer(message.answer)}</div>${mode}${keyPoints}${visual}${sources}${confidence}</article>`;
   }).join("");
   elements.chatMessages.querySelectorAll("[data-source-page]").forEach((button) => button.addEventListener("click", () => scrollToPage(Number(button.dataset.sourcePage))));
   elements.chatMessages.querySelectorAll("[data-visual-recovery]").forEach((button) => button.addEventListener("click", () => selectVisualRegion("whole", Number(button.dataset.visualRecovery))));
   elements.chatMessages.querySelectorAll("[data-pdf-visual-recovery]").forEach((button) => button.addEventListener("click", () => recoverPdfSelectionWithSnip(Number(button.dataset.pdfVisualRecovery))));
   if (scrollToBottom) requestAnimationFrame(() => { elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight; });
+}
+
+function renderSummaryKeyPoints(keyPoints = []) {
+  if (!keyPoints.length) return "";
+  return `<div class="summary-key-points"><strong>Điểm cần nhớ</strong>${keyPoints.map((point) => `<button type="button" data-source-page="${point.page}"><span>Trang ${point.page}</span>${escapeHtml(point.explanation)}</button>`).join("")}</div>`;
 }
 
 function renderVisualEvidence(message) {
