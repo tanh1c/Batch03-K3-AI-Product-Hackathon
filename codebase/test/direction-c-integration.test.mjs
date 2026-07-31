@@ -4,6 +4,7 @@ import test from "node:test";
 
 const appSource = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
 const htmlSource = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+const cssSource = await readFile(new URL("../public/styles.css", import.meta.url), "utf8");
 
 function section(start, end) {
   return appSource.slice(appSource.indexOf(start), appSource.indexOf(end));
@@ -35,6 +36,20 @@ test("keeps selection and local detection isolated from AI calls", () => {
     assert.ok(source, `missing ${start}`);
     assert.doesNotMatch(source, /fetch\(|extractPdfContext|\/api\/analyze/);
   }
+});
+
+test("lets learners remove the active visual context from the composer", () => {
+  assert.match(
+    htmlSource,
+    /<button[^>]*id="clearComposerContext"[^>]*aria-label="Bỏ vùng đã chọn"[^>]*hidden[^>]*>/,
+  );
+  const clearSelection = section("function clearComposerSelection", "function invalidatePdfWork");
+  assert.match(clearSelection, /clearPdfSelection\(\)/);
+  assert.match(clearSelection, /clearVisualSelection\(\)/);
+  assert.match(clearSelection, /chatInput\.value = ""/);
+  assert.match(clearSelection, /autoGrowComposer\(\)/);
+  assert.match(appSource, /clearComposerContext\.addEventListener\("click", clearComposerSelection\)/);
+  assert.match(cssSource, /\.composer-context button\[hidden\]\s*\{[^}]*display:\s*none/s);
 });
 
 test("maps vectors to the existing detected-image source", () => {

@@ -36,6 +36,11 @@
   outline: none;
 }
 
+.selection-overlay--enabled .selection-overlay__candidate[data-candidate-kind="text"] {
+  border-color: rgba(138, 90, 0, 0.55);
+  background: rgba(255, 187, 51, 0.06);
+}
+
 .selection-overlay__candidate[data-candidate-kind="text"]:hover,
 .selection-overlay__candidate[data-candidate-kind="text"]:focus-visible {
   border-color: #8a5a00;

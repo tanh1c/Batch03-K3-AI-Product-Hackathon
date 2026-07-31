@@ -132,7 +132,8 @@ export function filterCandidates(candidates, options = {}) {
     }
 
     const area = bounds.width * bounds.height;
-    if (area < minArea) return [];
+    const candidateMinArea = candidate.kind === "text" ? minArea * 0.2 : minArea;
+    if (area < candidateMinArea) return [];
     if (area >= maxArea) return [];
     if (bounds.width >= maxDim && bounds.height >= maxDim) return [];
 

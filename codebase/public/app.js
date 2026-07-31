@@ -138,6 +138,7 @@ const elements = {
   zoomLabel: document.querySelector("#zoomLabel"),
   pageNotePill: document.querySelector("#pageNotePill"),
   composerPage: document.querySelector("#composerPage"),
+  clearComposerContext: document.querySelector("#clearComposerContext"),
   selectionMenu: document.querySelector("#selectionMenu"),
   moreToolsButton: document.querySelector("#moreToolsButton"),
   moreToolsPanel: document.querySelector("#moreToolsPanel"),
@@ -202,6 +203,7 @@ function bindEvents() {
   document.querySelector("#clearButton").addEventListener("click", clearPageAnnotations);
   elements.moreToolsButton.addEventListener("click", toggleMoreToolsPanel);
   elements.regionSuggestionsButton.addEventListener("click", () => setRegionSuggestions(!state.suggestionsEnabled));
+  elements.clearComposerContext.addEventListener("click", clearComposerSelection);
   document.querySelector("#saveNoteButton").addEventListener("click", saveNote);
   document.querySelector("#aiStatusButton").addEventListener("click", () => showToast(state.aiConfigured ? `Tutor đã cấu hình ${state.aiProvider}/${state.aiModel}.` : `Tutor đang ở chế độ demo. Hãy cấu hình ${state.aiProvider || "AI provider"} trên server.`));
 
@@ -623,6 +625,15 @@ function clearPdfSelection() {
   state.snipSelection = null;
   renderSnipSelection();
   updateChrome();
+}
+
+function clearComposerSelection() {
+  clearPdfSelection();
+  clearVisualSelection();
+  elements.chatInput.value = "";
+  autoGrowComposer();
+  elements.chatInput.focus();
+  showToast("Đã bỏ vùng khỏi câu hỏi.", "success");
 }
 
 function invalidatePdfWork() {
@@ -1353,11 +1364,13 @@ function updateChrome() {
   const highlightNoteCount = getAnnotations(state.currentPage).filter((annotation) => annotation.kind === "text-highlight" && annotation.note?.trim()).length;
   const count = getNotes(state.currentPage).length + highlightNoteCount;
   elements.pageNotePill.textContent = `Trang ${state.currentPage} · ${count} note`;
+  const hasVisualContext = Boolean(state.pdfSelection || state.visualSelection);
   elements.composerPage.textContent = state.pdfSelection
     ? `${state.pdfSelection.label} · slide ${state.pdfSelection.pageNumber}`
     : state.visualSelection
       ? `${VISUAL_REGIONS[state.visualSelection.regionName].label} · slide ${state.visualSelection.pageNumber}`
       : `trang ${state.currentPage}`;
+  elements.clearComposerContext.hidden = !hasVisualContext;
   elements.quotaLabel.textContent = `${state.questionCount} / 15 câu`;
   elements.quotaProgress.style.width = `${Math.min(100, state.questionCount / 15 * 100)}%`;
 }
