@@ -5,6 +5,7 @@ import { detectPageRegions } from "/pdf-regions.mjs";
 import { circlePointsToBounds, createSelection } from "/selection-geometry.mjs";
 import { createSelectionOverlay } from "/selection-overlay.mjs";
 import { createSnipSelection } from "/snip.mjs";
+import { resolveSlideContext } from "/slide-context.mjs";
 import { buildVisualRequest, formatSelectionProvenance } from "/visual-request.mjs";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = "/vendor/pdf.worker.mjs";
@@ -102,6 +103,8 @@ const state = {
   visualSelection: null,
   pdfSelection: null,
   pdfSelectionAnnotationId: null,
+  wholeSlideContext: null,
+  wholeSlideDisabledQuestion: null,
   suggestionsEnabled: false,
   pdfWorkEpoch: 0,
   pdfExtractionController: null,
@@ -232,7 +235,7 @@ function bindEvents() {
     state.scrollFrame = requestAnimationFrame(() => { state.scrollFrame = null; updateCurrentPageFromScroll(); });
   }, { passive: true });
   elements.chatForm.addEventListener("submit", sendQuestion);
-  elements.chatInput.addEventListener("input", autoGrowComposer);
+  elements.chatInput.addEventListener("input", handleComposerInput);
   elements.chatInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); elements.chatForm.requestSubmit(); }
   });
@@ -305,6 +308,10 @@ async function activateDocument(id) {
     cancelPdfRenders();
     clearVisualSelection();
     clearPdfSelection();
+    state.selectionText = "";
+    state.wholeSlideContext = null;
+    state.wholeSlideDisabledQuestion = null;
+    elements.chatInput.value = "";
     state.document = { id: "demo-foundation", name: "AI trong hành động.pdf", type: "demo" };
     state.pdfDocument = null;
     state.pdfPages = [];
@@ -388,6 +395,10 @@ async function loadPdf(file, docMeta) {
   cancelPdfRenders();
   clearVisualSelection();
   clearPdfSelection();
+  state.selectionText = "";
+  state.wholeSlideContext = null;
+  state.wholeSlideDisabledQuestion = null;
+  elements.chatInput.value = "";
   showLoading(true, "Đang mở PDF…");
   let pdf = null;
   try {
@@ -605,6 +616,8 @@ function setPdfSelection(selection, suggestedQuestion, annotationId = null) {
   if (state.document.type !== "pdf") return;
   const validated = createSelection(selection);
   clearVisualSelection();
+  state.wholeSlideContext = null;
+  state.wholeSlideDisabledQuestion = null;
   state.pdfSelection = validated;
   state.pdfSelectionAnnotationId = annotationId;
   state.snipSelection = validated;
@@ -624,13 +637,48 @@ function clearPdfSelection() {
   state.pdfSelectionAnnotationId = null;
   state.snipSelection = null;
   renderSnipSelection();
+  refreshWholeSlideContext();
+}
+
+function handleComposerInput() {
+  autoGrowComposer();
+  if (state.wholeSlideDisabledQuestion !== elements.chatInput.value.trim()) {
+    state.wholeSlideDisabledQuestion = null;
+  }
+  refreshWholeSlideContext();
+}
+
+function refreshWholeSlideContext() {
+  const question = elements.chatInput.value.trim();
+  if (
+    state.document.type !== "pdf"
+    || state.pdfSelection
+    || state.visualSelection
+    || state.selectionText
+    || !question
+    || state.wholeSlideDisabledQuestion === question
+  ) {
+    state.wholeSlideContext = null;
+  } else {
+    state.wholeSlideContext = resolveSlideContext(question, state.currentPage, state.totalPages);
+  }
   updateChrome();
 }
 
 function clearComposerSelection() {
+  if (state.wholeSlideContext && !state.pdfSelection && !state.visualSelection) {
+    state.wholeSlideDisabledQuestion = elements.chatInput.value.trim();
+    state.wholeSlideContext = null;
+    updateChrome();
+    elements.chatInput.focus();
+    showToast("Đã chuyển câu hỏi này sang text-only.", "success");
+    return;
+  }
+  state.wholeSlideContext = null;
+  state.wholeSlideDisabledQuestion = null;
+  elements.chatInput.value = "";
   clearPdfSelection();
   clearVisualSelection();
-  elements.chatInput.value = "";
   autoGrowComposer();
   elements.chatInput.focus();
   showToast("Đã bỏ vùng khỏi câu hỏi.", "success");
@@ -1341,7 +1389,9 @@ function updateCurrentPageFromScroll() {
 function setCurrentPage(pageNumber) {
   if (pageNumber === state.currentPage) return;
   state.currentPage = pageNumber;
-  updateCurrentPageClass(); updateChrome();
+  updateCurrentPageClass();
+  if (state.wholeSlideContext && !state.wholeSlideContext.explicit) refreshWholeSlideContext();
+  else updateChrome();
 }
 
 function updateCurrentPageClass() {
@@ -1364,12 +1414,16 @@ function updateChrome() {
   const highlightNoteCount = getAnnotations(state.currentPage).filter((annotation) => annotation.kind === "text-highlight" && annotation.note?.trim()).length;
   const count = getNotes(state.currentPage).length + highlightNoteCount;
   elements.pageNotePill.textContent = `Trang ${state.currentPage} · ${count} note`;
-  const hasVisualContext = Boolean(state.pdfSelection || state.visualSelection);
+  const hasVisualContext = Boolean(state.pdfSelection || state.visualSelection || state.wholeSlideContext);
   elements.composerPage.textContent = state.pdfSelection
     ? `${state.pdfSelection.label} · slide ${state.pdfSelection.pageNumber}`
     : state.visualSelection
       ? `${VISUAL_REGIONS[state.visualSelection.regionName].label} · slide ${state.visualSelection.pageNumber}`
-      : `trang ${state.currentPage}`;
+      : state.wholeSlideContext
+        ? state.wholeSlideContext.valid
+          ? `AI sẽ xem toàn bộ slide ${state.wholeSlideContext.pageNumber}`
+          : `Slide ${state.wholeSlideContext.pageNumber} không tồn tại`
+        : `trang ${state.currentPage}`;
   elements.clearComposerContext.hidden = !hasVisualContext;
   elements.quotaLabel.textContent = `${state.questionCount} / 15 câu`;
   elements.quotaProgress.style.width = `${Math.min(100, state.questionCount / 15 * 100)}%`;
@@ -1410,23 +1464,41 @@ async function sendQuestion(event) {
     ? createSelection(state.pdfSelection)
     : null;
   const visualSelection = state.visualSelection ? { ...state.visualSelection } : null;
+  const wholeSlideContext = state.document.type === "pdf"
+    && !pdfSelection
+    && !visualSelection
+    && !state.selectionText
+    && state.wholeSlideDisabledQuestion !== question
+    ? resolveSlideContext(question, state.currentPage, state.totalPages)
+    : null;
   if (!question || state.sending) return;
+  if (wholeSlideContext && !wholeSlideContext.valid) {
+    state.wholeSlideContext = wholeSlideContext;
+    updateChrome();
+    showToast(`Slide ${wholeSlideContext.pageNumber} không tồn tại trong tài liệu này.`, "error");
+    return;
+  }
   if (state.questionCount >= 15) return showToast("Bạn đã dùng hết quota demo 15 câu hôm nay.", "error");
   state.tutorOpen = true; state.sending = true; updateWorkspace();
   state.chat.push({ role: "user", answer: question });
-  elements.chatInput.value = ""; autoGrowComposer(); renderChat(true);
+  elements.chatInput.value = "";
+  state.selectionText = "";
+  state.wholeSlideContext = null;
+  state.wholeSlideDisabledQuestion = null;
+  autoGrowComposer(); renderChat(true); updateChrome();
   elements.sendButton.disabled = true;
   const typingId = showTyping();
 
   try {
     if (pdfSelection) await sendPdfVisualQuestion(question, pdfSelection);
     else if (visualSelection) await sendVisualQuestion(question, visualSelection);
+    else if (wholeSlideContext) await sendPdfWholeSlideQuestion(question, wholeSlideContext.pageNumber);
     else await sendTextQuestion(question);
     state.questionCount += 1;
     persistState(); updateChrome();
   } catch (error) {
     if (error?.name === "AbortError") {
-      showToast("Yêu cầu vùng chọn đã dừng vì tài liệu hoặc mức zoom thay đổi.");
+      showToast("Yêu cầu visual đã dừng vì tài liệu hoặc mức zoom thay đổi.");
     } else {
       state.chat.push({ role: "assistant", answer: `Mình chưa thể trả lời lúc này: ${error.message}`, citations: [], confidence: 0, mode: "error" });
     }
@@ -1452,6 +1524,75 @@ async function sendTextQuestion(question) {
     confidence: data.confidence || 65,
     mode: data.mode || "fallback",
   });
+}
+
+async function sendPdfWholeSlideQuestion(question, pageNumber) {
+  const documentId = state.document.id;
+  const pageState = state.pdfPages[pageNumber - 1];
+  const epoch = state.pdfWorkEpoch;
+  if (!pageState) throw new Error("Không tìm thấy slide PDF cần xem.");
+
+  state.pdfExtractionController?.abort();
+  const controller = new AbortController();
+  state.pdfExtractionController = controller;
+  const renderPromise = renderPdfPage(pageNumber);
+  const shell = getPageShell(pageNumber);
+  const canvas = shell?.querySelector(".pdf-canvas");
+  const textLayer = shell?.querySelector(".pdf-text-layer");
+  if (!canvas || !textLayer) throw new Error("Slide PDF chưa sẵn sàng để phân tích.");
+
+  try {
+    const context = await extractPdfContext({
+      pageNumber,
+      canvas,
+      textLayer,
+      renderPromise,
+      signal: controller.signal,
+    }, {
+      pageNumber,
+      bounds: { x: 0, y: 0, width: 1, height: 1 },
+    });
+    if (
+      controller.signal.aborted
+      || epoch !== state.pdfWorkEpoch
+      || documentId !== state.document.id
+      || pageState !== state.pdfPages[pageNumber - 1]
+    ) {
+      throw new DOMException("Whole-slide PDF context is stale", "AbortError");
+    }
+
+    const body = JSON.stringify({
+      imageData: context.imageData,
+      mediaType: "image/png",
+      question,
+      slideNumber: pageNumber,
+      nearbyText: context.text.slice(0, 4000),
+    });
+    if (new Blob([body]).size > 10 * 1024 * 1024) {
+      throw new Error("Slide quá lớn để gửi. Hãy dùng Snip chọn vùng cần hỏi.");
+    }
+
+    const response = await fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      signal: controller.signal,
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Visual Tutor chưa thể trả lời.");
+    state.chat.push({
+      role: "assistant",
+      answer: result.route === "VISUAL_GROUNDED" ? result.answer : result.reason,
+      mode: "visual",
+      visualRoute: result.route,
+      visualPage: pageNumber,
+      visualProvenance: `Dựa trên toàn bộ slide ${pageNumber}`,
+      pdfVisual: true,
+      recoveryAction: result.recovery_action,
+    });
+  } finally {
+    if (state.pdfExtractionController === controller) state.pdfExtractionController = null;
+  }
 }
 
 async function sendPdfVisualQuestion(question, selection) {

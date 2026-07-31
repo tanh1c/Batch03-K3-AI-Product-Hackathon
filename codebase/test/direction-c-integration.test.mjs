@@ -41,15 +41,61 @@ test("keeps selection and local detection isolated from AI calls", () => {
 test("lets learners remove the active visual context from the composer", () => {
   assert.match(
     htmlSource,
-    /<button[^>]*id="clearComposerContext"[^>]*aria-label="Bỏ vùng đã chọn"[^>]*hidden[^>]*>/,
+    /<button[^>]*id="clearComposerContext"[^>]*aria-label="Bỏ ngữ cảnh hình ảnh"[^>]*hidden[^>]*>/,
   );
   const clearSelection = section("function clearComposerSelection", "function invalidatePdfWork");
+  assert.match(clearSelection, /wholeSlideContext/);
+  assert.match(clearSelection, /wholeSlideDisabledQuestion/);
   assert.match(clearSelection, /clearPdfSelection\(\)/);
   assert.match(clearSelection, /clearVisualSelection\(\)/);
   assert.match(clearSelection, /chatInput\.value = ""/);
   assert.match(clearSelection, /autoGrowComposer\(\)/);
   assert.match(appSource, /clearComposerContext\.addEventListener\("click", clearComposerSelection\)/);
   assert.match(cssSource, /\.composer-context button\[hidden\]\s*\{[^}]*display:\s*none/s);
+});
+
+test("resolves removable whole-slide context without overriding explicit selections", () => {
+  assert.match(appSource, /import \{ resolveSlideContext \} from "\/slide-context\.mjs"/);
+  assert.match(appSource, /chatInput\.addEventListener\("input", handleComposerInput\)/);
+
+  const refresh = section("function refreshWholeSlideContext", "function clearComposerSelection");
+  assert.match(refresh, /state\.document\.type !== "pdf"/);
+  assert.match(refresh, /state\.pdfSelection\s*\|\|\s*state\.visualSelection/);
+  assert.match(refresh, /state\.selectionText/);
+  assert.match(refresh, /resolveSlideContext\(/);
+  assert.match(refresh, /wholeSlideDisabledQuestion/);
+
+  const chrome = section("function updateChrome", "function toggleTheme");
+  assert.match(chrome, /AI sẽ xem toàn bộ slide/);
+  assert.match(chrome, /Slide .* không tồn tại/);
+});
+
+test("validates and routes whole-slide context only from explicit form submit", () => {
+  const sendQuestion = section("async function sendQuestion", "async function sendTextQuestion");
+  assert.match(sendQuestion, /resolveSlideContext\(/);
+  assert.match(sendQuestion, /wholeSlideDisabledQuestion/);
+  assert.match(sendQuestion, /sendPdfWholeSlideQuestion\(question, wholeSlideContext\.pageNumber\)/);
+  assert.ok(
+    sendQuestion.indexOf("!wholeSlideContext.valid") < sendQuestion.indexOf("state.chat.push"),
+    "invalid explicit pages must stop before chat or quota work",
+  );
+  assert.ok(
+    sendQuestion.indexOf("pdfSelection") < sendQuestion.indexOf("sendPdfWholeSlideQuestion"),
+    "explicit PDF selection must retain precedence",
+  );
+
+  const sender = section("async function sendPdfWholeSlideQuestion", "async function sendPdfVisualQuestion");
+  assert.match(sender, /await extractPdfContext\(/);
+  assert.match(sender, /bounds:\s*\{ x: 0, y: 0, width: 1, height: 1 \}/);
+  assert.match(sender, /fetch\("\/api\/analyze"/);
+  assert.match(sender, /nearbyText: context\.text\.slice\(0, 4000\)/);
+  assert.match(sender, /Dựa trên toàn bộ slide/);
+  assert.doesNotMatch(sender, /\/api\/tutor|buildVisualRequest|selectionSource|selectedAreaRatio|needsOcr|annotation-canvas/);
+});
+
+test("does not persist automatic whole-slide context", () => {
+  const persistence = section("function persistState", "function normalizeWords");
+  assert.doesNotMatch(persistence, /wholeSlideContext|wholeSlideDisabledQuestion/);
 });
 
 test("maps vectors to the existing detected-image source", () => {

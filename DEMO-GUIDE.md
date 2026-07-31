@@ -72,9 +72,26 @@ Trước buổi demo:
 
 Điểm cần nói:
 
-> Đây là luồng Tutor text hiện có. Nó phù hợp với câu hỏi dựa trên chữ nhưng không truyền được pixel của hình ảnh.
+> Selection text tường minh vẫn dùng luồng Tutor text hiện có; hệ thống không tự thay nó bằng ảnh toàn slide.
 
-### 3.3. Gợi ý vùng chữ, hình và đồ họa
+### 3.3. Tự động xem toàn bộ một slide
+
+Không cần chọn candidate, Snip hoặc Circle:
+
+1. Nhập `Ở slide 5 có hình gì?`.
+2. Composer hiển thị `AI sẽ xem toàn bộ slide 5` trước khi gửi.
+3. Bấm `Gửi` để render và gửi đúng pixel của slide 5 qua `/api/analyze`.
+4. Câu trả lời hiển thị provenance `Dựa trên toàn bộ slide 5`.
+
+Nếu câu hỏi không nhắc số slide, hệ thống dùng slide đang mở. Nếu nhập slide ngoài tài liệu, ví dụ `slide 50`, composer báo lỗi và không fallback sang slide khác.
+
+Bấm `×` trên chip để chuyển riêng câu hỏi hiện tại về text-only; thao tác bỏ chip không tạo request. Candidate, Snip hoặc Circle được chọn tường minh luôn có ưu tiên cao hơn toàn slide.
+
+Điểm cần nói:
+
+> Hệ thống chỉ gửi đúng một slide sau khi learner chủ động bấm Gửi; không quét hoặc upload toàn bộ PDF 49 trang.
+
+### 3.4. Gợi ý vùng chữ, hình và đồ họa
 
 Thao tác:
 
@@ -95,7 +112,7 @@ Hệ thống hiện có thể phát hiện cục bộ:
 
 > Detector là heuristic hỗ trợ chọn nhanh, không phải segmentation hoàn hảo. Nếu detector bỏ sót hoặc chọn sai, learner vẫn dùng Snip hoặc Circle.
 
-### 3.4. Chọn vùng tự do bằng Snip
+### 3.5. Chọn vùng tự do bằng Snip
 
 Thao tác:
 
@@ -117,7 +134,7 @@ Kết quả:
 
 > Tạo Snip chỉ là thao tác local. Crop và AI call chỉ xảy ra sau khi learner bấm Gửi.
 
-### 3.5. Chọn vùng bằng Circle
+### 3.6. Chọn vùng bằng Circle
 
 Thao tác:
 
@@ -132,7 +149,7 @@ Kết quả:
 - Crop chỉ lấy canvas PDF nên không gửi chính nét vẽ vào ảnh cho AI.
 - Selection source là `circle`.
 
-### 3.6. Bỏ vùng khỏi câu hỏi
+### 3.7. Bỏ vùng khỏi câu hỏi
 
 Sau khi chọn Snip, Circle hoặc candidate:
 
@@ -145,7 +162,7 @@ Sau khi chọn Snip, Circle hoặc candidate:
 
 Đây là bước nên demo để chứng minh learner luôn kiểm soát context trước khi gửi.
 
-### 3.7. OCR-aware cho PDF scan
+### 3.8. OCR-aware cho PDF scan
 
 - Nếu vùng được chọn có text layer, hệ thống gửi bounded text cùng crop.
 - Nếu vùng không có text layer, request đánh dấu `needsOcr: true`.
@@ -156,7 +173,7 @@ Sau khi chọn Snip, Circle hoặc candidate:
 
 > OCR chỉ áp dụng cho vùng learner đã chủ động chọn, giúp giảm dữ liệu gửi đi và tránh đọc ngoài phạm vi.
 
-### 3.8. Provenance và structured routing
+### 3.9. Provenance và structured routing
 
 AI chỉ được trả một trong bốn route:
 
@@ -167,7 +184,7 @@ AI chỉ được trả một trong bốn route:
 
 Grounded response hiển thị provenance theo nguồn chọn và số slide. Recovery response có lý do và hành động tiếp theo.
 
-### 3.9. Recovery an toàn
+### 3.10. Recovery an toàn
 
 Nếu vùng chưa đủ:
 
@@ -179,7 +196,7 @@ Nếu vùng chưa đủ:
 
 > Cost-of-error cao vì giải thích sai hình có thể khiến learner học sai. Khi thiếu căn cứ, hệ thống recovery thay vì đoán.
 
-### 3.10. Zoom và chống dùng sai vùng
+### 3.11. Zoom và chống dùng sai vùng
 
 Có thể demo:
 
@@ -191,7 +208,7 @@ Có thể demo:
 
 Hệ thống dùng normalized bounds, work epoch và AbortController để tránh crop hoặc kết quả async từ tài liệu/trang cũ.
 
-### 3.11. Annotation và công cụ học tập
+### 3.12. Annotation và công cụ học tập
 
 Ngoài Visual Tutor, prototype còn có:
 
@@ -207,7 +224,7 @@ Ngoài Visual Tutor, prototype còn có:
 
 Chỉ demo nhanh; không để các công cụ này làm lu mờ central AI decision.
 
-### 3.12. Quyền riêng tư
+### 3.13. Quyền riêng tư
 
 Có thể trình bày bằng lời hoặc DevTools:
 
@@ -272,11 +289,11 @@ Không đảm bảo model luôn chọn đúng recovery trong live demo; nếu ro
 
 Nói ngắn gọn:
 
-- Chỉ gửi crop sau explicit submit.
+- Chỉ gửi vùng chọn hoặc đúng một slide sau explicit submit.
 - Direction C Run 01: `9/12`, unsupported grounded `0`, chưa đạt bar `10/12`.
 - Direction B lịch sử: `18/20`, unsupported grounded `0`.
 - Direction B hậu-C7: `19/20` nhưng có một unsupported grounded trên ảnh trắng nên không đạt hard bar.
-- Automated suite hiện tại: `117/117` pass.
+- Automated suite hiện tại: `123/123` pass.
 - Validation 5 người hiện chỉ áp dụng cho Direction B; chưa có usability study mới cho Direction C.
 
 ## 5. Nếu chỉ có 3 phút
@@ -284,9 +301,9 @@ Nói ngắn gọn:
 Chỉ demo bốn điểm:
 
 1. Upload PDF 49 trang.
-2. Bật `Gợi ý vùng` và chọn một vùng text/image/vector.
-3. Dùng Snip, đặt câu hỏi và nhận grounded answer có provenance.
-4. Bỏ vùng bằng `×` hoặc chạy recovery `Chọn lại bằng Snip`.
+2. Hỏi `Ở slide 5 có hình gì?` và chỉ chip toàn slide trước khi gửi.
+3. Bật `Gợi ý vùng` hoặc dùng Snip để hỏi một vùng cụ thể.
+4. Bỏ context bằng `×` hoặc chạy recovery `Chọn lại bằng Snip`.
 
 Sau đó nói privacy và kết quả eval trong một câu.
 
@@ -294,13 +311,13 @@ Sau đó nói privacy và kết quả eval trong một câu.
 
 ### Chưa có retrieval hình ảnh toàn tài liệu
 
-Nếu learner hỏi bình thường mà không chọn vùng:
+Tutor tự động nhìn được đúng một slide đang mở hoặc được nhắc rõ trong câu hỏi. Hệ thống vẫn không:
 
-- `/api/tutor` chỉ retrieval text từ các trang liên quan.
-- AI không tự nhìn toàn bộ pixel của 49 slide.
-- AI không tự tìm một ảnh bất kỳ ở slide khác.
+- Quét pixel của cả 49 slide trong một request.
+- Tự tìm một ảnh không rõ vị trí ở slide khác.
+- So sánh visual của nhiều slide cùng lúc.
 
-Muốn AI nhìn hình, learner phải chọn candidate, Snip hoặc Circle rồi submit.
+Muốn hỏi một hình cụ thể với context tối thiểu, learner vẫn nên dùng candidate, Snip hoặc Circle.
 
 ### Detector không phải segmentation hoàn hảo
 
@@ -360,6 +377,7 @@ Không dùng câu hỏi quá chung như `Hình này là gì?` nếu mục tiêu 
 - [ ] `/api/health` báo AI đã cấu hình.
 - [ ] PDF upload thành công và hiện 49 trang.
 - [ ] Trang dự định demo đã render.
+- [ ] Câu `Ở slide 5 có hình gì?` hiện chip toàn slide 5 trước khi gửi.
 - [ ] `Gợi ý vùng` có candidate trên trang dự định demo.
 - [ ] Snip và Circle tạo selection nhưng chưa tự gọi AI.
 - [ ] Nút `×` bỏ selection đúng.
