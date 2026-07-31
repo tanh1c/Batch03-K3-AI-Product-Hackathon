@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-07-30T19:01:53.008Z",
+  "setId": "direction-c-v1",
+  "setVersion": 1,
+  "setSha256": "23fe8db8c24f1093c2a7aa50edae6b9f18db1bca136785dd653c3abc39b14f58",
+  "implementationCommit": "0e86d1be446de9d1791089e43aee1f6759dc6164",
+  "provider": "openrouter",
+  "model": "openai/o4-mini",
+  "runId": "7da1bf224aa4b0a6",
+  "caseCount": 12,
+  "imageBytes": 159219,
+  "routes": {
+    "VISUAL_GROUNDED": 7,
+    "NEED_WIDER_REGION": 5
+  }
+}

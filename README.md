@@ -37,31 +37,24 @@ VLearn Tutor đã đọc được text được chọn nhưng chưa nhận đún
 - Bút, Circle, highlight và ghi chú theo trang.
 - OpenAI, OpenRouter, Gemini trực tiếp và local 9router; không fallback chéo provider ở tầng ứng dụng.
 
-### Direction C — package đã kiểm thử
+### Direction C — working end-to-end trên PDF tải lên
 
-- **C0:** normalized selection contract.
-- **C1:** Snip hình chữ nhật trên PDF, giữ đúng vị trí khi zoom.
-- **C2:** crop canvas PDF, lấy text giao vùng và đánh dấu khi cần OCR.
-- **C3/C4:** phát hiện candidate image, vector và text region từ PDF.js.
-- **C5:** overlay candidate bằng button accessible.
-
-### Chưa hoàn thành end-to-end
-
-- C6 Circle-to-selection đang chờ tích hợp.
-- C7 OCR/multimodal request packaging chưa hoàn tất.
-- C8 chưa nối detector → overlay → C2 → Tutor trên PDF tải lên.
-- Vì vậy Snip/Circle và candidate detector trên PDF thật chưa tự gửi AI; tạo selection không phát sinh request Tutor.
+- **C0–C2:** selection chuẩn hóa từ Snip/Circle, crop đúng canvas PDF và lấy text trong vùng.
+- **C3–C5:** phát hiện local candidate text/image/vector và hiển thị bằng button accessible qua toggle `Gợi ý vùng`.
+- **C6–C7:** Circle bridge và request metadata OCR-aware; vector dùng source `detected-image`.
+- **C8:** chỉ khi học viên bấm Gửi mới chạy crop → `/api/analyze`; tạo/click selection không gọi AI. Recovery luôn quay lại Snip, không tự upload cả trang.
+- Selection giữ đúng vị trí qua zoom, bị xóa khi đổi tài liệu và không được lưu cùng crop/text/câu hỏi vào `localStorage`.
 
 ## Kết quả đã đo
 
-- Golden eval AI: **18/20 = 90%**, vượt quality bar **≥80%**.
-- Hard constraint: **0** case thiếu căn cứ bị trả `VISUAL_GROUNDED`.
-- Automated suite tại commit `ba2a1e3`: **79/79 pass**.
-- PDF thật `01 - 4-day02-lecture-slides-v2.pdf`: render đủ **49 trang**, canvas và text layer hoạt động.
-- Browser regression: upload, zoom, Snip, Read, Pen và Circle pass; không có page error hoặc request AI khi chỉ tạo Snip.
-- Validation: **5/5** người ngoài nhóm hoàn thành task; chi tiết tại [`validation/summary.md`](validation/summary.md).
+- Direction B Run 01 lịch sử: **18/20 = 90%**, unsupported grounded **0**, đạt bar.
+- Direction C Run 01 với `openai/o4-mini`: **9/12 = 75%**, unsupported grounded **0**, **chưa đạt** bar 10/12; ba case recovery phân loại sai route.
+- Direction B hậu-C7: **19/20 = 95%** nhưng **chưa đạt hard bar** vì case ảnh trắng `R02` bị trả `VISUAL_GROUNDED` với nội dung QEMU/GDB không có trong fixture.
+- Automated suite hiện tại: **115/115 pass**; syntax và diff checks pass.
+- Browser C8 với PDF thật 49 trang: candidate xuất hiện lazy ở trang 2/6/9; Snip, Circle, candidate, zoom 60/90/150%, recovery, đổi tài liệu, Direction B, privacy và mobile overflow đều pass; không có page error.
+- Validation 5 người chỉ đo Direction B: **5/5** hoàn thành task; chưa có usability study mới cho Direction C.
 
-Chi tiết AI eval nằm trong [`eval/README.md`](eval/README.md), [`eval/run-01-results.json`](eval/run-01-results.json) và [`eval/run-01-summary.md`](eval/run-01-summary.md).
+Chi tiết nằm trong [`eval/README.md`](eval/README.md), các result/trace immutable trong [`eval/`](eval/) và [`validation/summary.md`](validation/summary.md).
 
 ## Chạy prototype
 
@@ -85,11 +78,11 @@ npm test
 
 ## Kịch bản demo hiện tại
 
-1. Upload một PDF và chứng minh reader, text layer, zoom, annotation hoạt động.
-2. Chọn text rồi hỏi Tutor theo ngữ cảnh tài liệu.
-3. Dùng Snip trên PDF để chứng minh normalized selection; giải thích rõ bước gửi Snip đến AI thuộc C8 và chưa hoàn tất.
-4. Mở slide demo 2, click nhánh Machine Learning/Deep Learning và gửi câu hỏi Visual Tutor.
-5. Trình bày grounded route và một recovery route, sau đó đối chiếu Run 01 đạt 90%.
+1. Upload PDF, bật `Gợi ý vùng` và chọn candidate text/image/vector trên một trang đã render.
+2. Dùng Snip hoặc Circle chọn vùng khác; xác nhận chưa có request AI trước khi bấm Gửi.
+3. Nhập câu hỏi và bấm Gửi để chạy crop + bounded text/OCR-aware metadata qua Visual Tutor.
+4. Trình bày provenance của grounded route và recovery `Chọn lại bằng Snip`; thử zoom hoặc đổi tài liệu để thấy selection không bị dùng sai.
+5. Mở slide demo 2 để chứng minh Direction B vẫn hoạt động, rồi trình bày trung thực hai gate AI hiện chưa đạt sau C7/C8.
 
 ## Artifact nộp bài
 

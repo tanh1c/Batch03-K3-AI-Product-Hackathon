@@ -9,7 +9,7 @@
 - **Prototype được thử:** Direction B — chọn vùng sơ đồ Machine Learning/Deep Learning trên slide demo và xử lý một vùng thiếu context.
 - **Cách thử:** người điều phối giao task rồi quan sát, không chỉ cách bấm; chi tiết tại [`protocol.md`](protocol.md).
 
-Validation này không đánh giá auto-detect/Snip-to-AI của Direction C vì C6–C8 chưa hoàn tất flow end-to-end.
+Validation này chỉ đánh giá Direction B. C6–C8 hiện đã có flow end-to-end và browser assertions, nhưng chưa có vòng usability study mới với người dùng cho auto-detect, Circle hoặc Snip-to-AI của Direction C.
 
 ## Người tham gia và kết quả
 
@@ -72,4 +72,4 @@ Các quote được giữ nguyên chữ hoa/thường và cách diễn đạt t�
 
 ## Kết luận
 
-Direction B chứng minh được job chính với 5/5 người hoàn thành và không có Critical failure. Điểm yếu lớn nhất không nằm ở khả năng AI trả lời mà ở discoverability của vùng bấm và việc giúp người học bắt đầu câu hỏi. Validation ủng hộ tiếp tục tích hợp Direction C, nhưng chưa cung cấp bằng chứng rằng auto-detect, Circle hoặc Snip-to-AI đã usable.
+Direction B chứng minh được job chính với 5/5 người hoàn thành và không có Critical failure. Điểm yếu lớn nhất không nằm ở khả năng AI trả lời mà ở discoverability của vùng bấm và việc giúp người học bắt đầu câu hỏi. Direction C đã được tích hợp và kiểm tra kỹ thuật bằng browser assertions, nhưng validation này vẫn chưa chứng minh auto-detect, Circle hoặc Snip-to-AI usable với người dùng thật.

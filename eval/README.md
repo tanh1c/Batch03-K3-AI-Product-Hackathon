@@ -4,23 +4,22 @@ Thư mục này lưu golden set, kết quả đầy đủ của lời gọi AI t
 
 ## Quality bar đã chốt
 
-> Đạt khi **≥80% case pass**, đồng thời **không case thiếu căn cứ nào được trả `VISUAL_GROUNDED`**.
+- **Direction B:** đạt khi **≥80% case pass** và **không case thiếu căn cứ nào được trả `VISUAL_GROUNDED`**.
+- **Direction C v1:** đạt khi **≥10/12**, unsupported grounded bằng **0**, wrong-page crop bằng **0**, và cả fallback Snip/Circle usable.
 
 Một case pass khi:
 
 1. `actualRoute` trùng `expectedRoute`;
-2. grounded case chứa ít nhất một fact bắt buộc nhìn thấy trong fixture và không thêm claim trái hình;
+2. automated check tìm thấy ít nhất một fact bắt buộc trong grounded case;
 3. output có dấu hiệu tiếng Việt;
-4. output đúng bốn field và qua runtime validator.
+4. output đúng bốn field và qua runtime validator;
+5. người review đọc mọi grounded output để loại claim trái fixture trước khi kết luận gate.
 
 ## Golden set
 
-[`golden-set.json`](golden-set.json) có **20 case**:
+[`golden-set.json`](golden-set.json) là bộ Direction B lịch sử gồm 20 case: 8 hard, 9 ordinary và 3 rare.
 
-- 8 hard case: 2 case cho mỗi lớp `source_truth`, `ambiguity`, `scope_authority`, `domain`;
-- 9 ordinary case;
-- 3 rare case;
-- 12 case phát triển từ 5 turn chatlog thật đã ẩn danh, chỉ giữ mã C/T và context tối thiểu.
+[`direction-c-golden-set.json`](direction-c-golden-set.json) là bộ Direction C v1 đã đóng băng gồm đúng 12 case: 4 mixed, 3 scanned, 3 recovery và 2 detector fallback. Bộ này bao phủ Snip, Circle, detected text, detected image, vector-as-detected-image, OCR-aware metadata và hai fallback thủ công. Năm PNG đều là fixture tổng hợp có SHA-256 trong set; không có crop từ PDF thật được commit.
 
 ## Run 01 — AI thật
 
@@ -47,33 +46,23 @@ Nguồn kiểm chứng:
 - Trace lời gọi thật đã redacted: [`real-call-trace.json`](real-call-trace.json)
 - Script chạy lại: [`run-eval.mjs`](run-eval.mjs)
 
-## Kiểm chứng prototype tại commit `ba2a1e3`
+## C9 — AI thật và browser gate
 
-| Gate | Kết quả | Phạm vi chứng minh |
-|---|---:|---|
-| Automated tests | **79/79 pass** | Provider, visual contract, selection geometry, Snip, PDF context, detector, overlay và wiring regressions |
-| Static syntax check | Pass | `server.mjs` và `public/app.js` |
-| PDF thật | **49/49 trang render** | `01 - 4-day02-lecture-slides-v2.pdf` |
-| PDF page 1 canvas | `1001 × 563` | Canvas bitmap hiển thị, không phải khung trắng |
-| PDF page 1 text layer | **88 span** | Text layer có thể chọn và làm context Tutor |
-| Zoom smoke | `90% → 100%` | Canvas render lại thành công |
-| Read/Pen/Circle regression | Pass | Annotation cũ không bị Snip làm hỏng |
-| Snip API isolation | **0 request** | Tạo Snip không gọi `/api/tutor` hoặc `/api/analyze` |
-| Browser errors | **0** | Golden path được drive bằng Edge headless |
+| Run | Kết quả | Unsupported grounded | Gate |
+|---|---:|---:|---|
+| Direction C Run 01 | **9/12 (75%)** | 0 | **Chưa đạt 10/12** |
+| Direction B hậu-C7 | **19/20 (95%)** | 1 | **Chưa đạt hard constraint** |
 
-Browser smoke output được ghi nhận trong phiên review merge C3/C4/C5. Screenshot cục bộ không được commit vì chỉ là ảnh tạm; các assertion có thể tái lập bằng automated suite và kịch bản dưới đây.
+Direction C failure được giữ nguyên: `C07` và `C10` chọn `NEED_WIDER_REGION` thay vì `NEED_BETTER_IMAGE`; `C09` chọn `NEED_WIDER_REGION` thay vì `INSUFFICIENT`. Bảy grounded output đã được rà theo fixture và không thấy claim ngoài nguồn.
 
-## Kết quả detector trên PDF thật
+Direction B hậu-C7 có failure nghiêm trọng `R02`: model trả `VISUAL_GROUNDED` và bịa bảng lệnh QEMU/GDB từ fixture trắng. Run 01 lịch sử 18/20 vẫn bất biến và vẫn là kết quả đã đo trước thay đổi C7.
 
-Đây là kiểm chứng package C3/C4, chưa phải flow UI C8:
+Nguồn kiểm chứng mới:
 
-- Trang 1: không candidate sau khi loại footer/background trang trí.
-- Trang 2: một vector candidate hữu ích.
-- Trang 6: candidate text, image và vector.
-- Trang 9: một vector candidate lớn trong ngưỡng hợp lệ.
-- Page-sized background, vector quá lớn và nét trang trí mỏng bị lọc.
+- [`direction-c-run-01-results.json`](direction-c-run-01-results.json) và [`direction-c-run-01-real-call-trace.json`](direction-c-run-01-real-call-trace.json)
+- [`direction-b-post-c7-run-01-results.json`](direction-b-post-c7-run-01-results.json) và [`direction-b-post-c7-run-01-real-call-trace.json`](direction-b-post-c7-run-01-real-call-trace.json)
 
-Không được diễn giải các kết quả trên thành “auto-detect/click-to-AI đã chạy trên UI”; detector và C5 overlay chưa được C8 nối vào `app.js`.
+Browser gate C8 trên PDF thật 49 trang: candidate lazy ở trang 2/6/9; Snip/Circle/candidate chỉ gửi sau explicit Send; Circle crop không chứa annotation canvas; outline giữ qua zoom 60/90/150%; recovery trở lại Snip; đổi tài liệu xóa selection; Direction B không nhận metadata C7; localStorage không giữ raw visual data; mobile 390 px không overflow; browser error bằng 0. Đây là evidence kỹ thuật, không phải usability study Direction C.
 
 ## Chạy lại
 
@@ -85,10 +74,19 @@ npm run check
 npm test
 ```
 
-AI eval cần provider được cấu hình và sẽ tạo lời gọi thật:
+Validate set offline, không cần key/network và không tạo output:
 
 ```bash
-node eval/run-eval.mjs
+node eval/run-eval.mjs --validate --set eval/direction-c-golden-set.json
 ```
 
-Không commit `.env`, API key, raw crop, raw question hoặc upstream response body. Khi chạy lại phải tạo một run mới; không ghi đè hoặc chỉnh sửa Run 01 để làm đẹp tỷ lệ.
+AI eval cần provider được cấu hình và bắt buộc dùng tên output mới:
+
+```bash
+node --env-file-if-exists=codebase/.env eval/run-eval.mjs --run \
+  --set eval/direction-c-golden-set.json \
+  --results eval/direction-c-run-02-results.json \
+  --trace eval/direction-c-run-02-real-call-trace.json
+```
+
+Runner reserve cả hai file bằng `wx` trước khi gọi provider, từ chối overwrite và xóa reservation nếu run không hoàn tất. `passed`/`passRate` là automated score; runner đặt `providerGateMet: null` cho tới khi grounded outputs được review thủ công. Không commit `.env`, API key, raw crop, raw question, base64 image hoặc upstream response body; không chỉnh sửa Run 01 để làm đẹp tỷ lệ.

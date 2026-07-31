@@ -15,13 +15,14 @@ Prototype trình đọc PDF và trợ giảng AI theo ngữ cảnh, tái hiện 
 - Chế độ sáng/tối và lưu ghi chú, annotation, theme bằng `localStorage`.
 - Hỗ trợ OpenAI, OpenRouter, Google Gemini trực tiếp và local 9router; Tutor demo hoạt động khi provider đã chọn chưa được cấu hình.
 - Ở slide mẫu có sơ đồ, chọn nhánh hoặc toàn bộ vùng hình để gửi câu hỏi tới Visual Tutor; câu trả lời hiển thị provenance theo slide và hướng dẫn chọn vùng rộng hơn khi chưa đủ ngữ cảnh.
-- Visual Tutor gửi ảnh crop PNG tối thiểu tới server; trace chỉ lưu metadata đã băm, không lưu câu hỏi gốc hoặc ảnh.
+- Với PDF tải lên, có thể bật `Gợi ý vùng` để phát hiện local candidate text/image/vector, hoặc tự chọn bằng Snip/Circle; chỉ lần bấm Gửi mới crop đúng trang và gọi Visual Tutor.
+- Visual Tutor gửi ảnh crop PNG và bounded text tối thiểu tới server; vùng không có text layer dùng cùng model multimodal để đọc crop. Trace chỉ lưu metadata đã băm, không lưu câu hỏi gốc hoặc ảnh.
 
 ### Visual Tutor
 
 Visual Tutor có hợp đồng bốn route: `VISUAL_GROUNDED`, `NEED_WIDER_REGION`, `NEED_BETTER_IMAGE`, `INSUFFICIENT`. Chỉ route grounded có `answer`; các route phục hồi phải có `reason` và `recovery_action` cụ thể. Mô hình được cấu hình cho Visual Tutor phải hỗ trợ ảnh và structured JSON output.
 
-Luồng MVP hiện hỗ trợ chọn vùng bằng nút trên slide demo. Tự động quét toàn bộ slide để phát hiện vùng ảnh chưa nằm trong phạm vi MVP.
+Direction B giữ luồng nút vùng cấu hình sẵn trên slide demo. Direction C phát hiện candidate theo từng trang PDF đã render bằng heuristic PDF.js; đây không phải segmentation/OCR toàn tài liệu và candidate sai hoặc thiếu luôn có fallback Snip/Circle.
 
 Credentials chỉ được đọc ở server và không xuất hiện trong trace hoặc browser. VLearn không tự fallback sang provider khác; nếu dùng combo model, fallback bên trong 9router thuộc quyền kiểm soát của gateway.
 
@@ -90,7 +91,8 @@ Khởi động lại bằng `npm start`. Credentials chỉ tồn tại ở serve
 
 ## Phạm vi prototype
 
-- PDF dạng ảnh scan vẫn hiển thị được nhưng Tutor không đọc được chữ vì chưa tích hợp OCR.
+- PDF scan không được OCR toàn tài liệu; chỉ crop do người học chọn mới được model multimodal đọc khi vùng đó không có bounded text.
+- Candidate detection là heuristic local, không bảo đảm tìm đúng mọi ảnh/vector/text region; Snip/Circle là fallback thủ công.
 - Annotation được lưu trong trình duyệt hiện tại, chưa đồng bộ tài khoản hoặc cơ sở dữ liệu.
 - File PDF không được giữ lại sau khi refresh; người dùng cần chọn lại file. Ghi chú của file vẫn còn nếu tải lại đúng file đó.
 - Chưa có đăng nhập, phân quyền giáo viên hoặc quản trị học liệu.
