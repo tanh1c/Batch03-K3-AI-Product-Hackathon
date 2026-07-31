@@ -390,6 +390,24 @@ test("detectTextCandidates honors a bounded text-item work limit", () => {
   assert.doesNotMatch(candidates[0].label, /third/);
 });
 
+test("detectPageRegions keeps a short readable text region", () => {
+  const viewport = { width: 1000, height: 800 };
+  const result = detectPageRegions({
+    pageNumber: 3,
+    viewport,
+    textContent: {
+      items: [
+        { str: "Gradient descent", transform: [16, 0, 0, 16, 100, 700], width: 120, height: 16 },
+      ],
+    },
+    operatorList: { fnArray: [], argsArray: [] },
+  });
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0].kind, "text");
+  assert.match(result[0].label, /Gradient descent/);
+});
+
 test("filterCandidates rejects tiny items, full-page backgrounds, and high IoU duplicates", () => {
   const candidates = [
     // Tiny item (area < 0.005)

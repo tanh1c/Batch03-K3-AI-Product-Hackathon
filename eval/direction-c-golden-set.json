@@ -1,0 +1,170 @@
+{
+  "setId": "direction-c-v1",
+  "version": 1,
+  "fixtures": {
+    "blank.png": "49b776733686fe5ee3102cdfd3b1ab93aedb5493adab61cd5638e0b95ecd1e4c",
+    "missing-labels.png": "b54609de4b44966b2199e8ceccf35532b9e514f8798f8b25844dc7e208141eb6",
+    "ml-branch.png": "a882fb9c7beb6aeee886d3949f687c2961029ee9cabd08a4f95423b2033d4bb3",
+    "tiny-unreadable.png": "eed521c01b80ea31c3e8768b219278a32d2b5fab0cdac1b84ea4707fff18a7e5",
+    "whole.png": "89e2a28e93d885ad4acc89ae36da3410d4d84d8639589bc2e28ff2ec782eb6e8"
+  },
+  "qualityBar": {
+    "minimumPassed": 10,
+    "totalCases": 12,
+    "maximumUnsupportedGrounded": 0,
+    "maximumWrongPageCrops": 0,
+    "requiredManualFallbacks": ["snip", "circle"]
+  },
+  "cases": [
+    {
+      "id": "C01",
+      "category": "mixed",
+      "fixture": "whole.png",
+      "page": 2,
+      "selection": {"pageNumber": 2, "source": "detected-image", "bounds": {"x": 0.05, "y": 0.12, "width": 0.9, "height": 0.65}, "label": "Sơ đồ Machine Learning và Deep Learning"},
+      "boundedText": "So sánh Machine Learning và Deep Learning.",
+      "needsOcr": false,
+      "question": "Hình này mô tả hai cách học từ dữ liệu ra sao?",
+      "expectedRoute": "VISUAL_GROUNDED",
+      "requiredVisibleFacts": ["machine learning", "deep learning"]
+    },
+    {
+      "id": "C02",
+      "category": "mixed",
+      "fixture": "ml-branch.png",
+      "page": 2,
+      "selection": {"pageNumber": 2, "source": "snip", "bounds": {"x": 0.08, "y": 0.2, "width": 0.72, "height": 0.48}, "label": "Vùng cắt"},
+      "boundedText": "Nhánh Machine Learning của sơ đồ.",
+      "needsOcr": false,
+      "question": "Thứ tự các bước trong nhánh Machine Learning là gì?",
+      "expectedRoute": "VISUAL_GROUNDED",
+      "requiredVisibleFacts": ["hand-crafted", "ml model"]
+    },
+    {
+      "id": "C03",
+      "category": "mixed",
+      "fixture": "whole.png",
+      "page": 3,
+      "selection": {"pageNumber": 3, "source": "detected-text", "bounds": {"x": 0.12, "y": 0.15, "width": 0.76, "height": 0.22}, "label": "Vùng chữ 1"},
+      "boundedText": "Raw Data, Hand-crafted Features, ML Model, Neural Network, Prediction",
+      "needsOcr": false,
+      "question": "Đầu vào và đầu ra của hai nhánh được ghi là gì?",
+      "expectedRoute": "VISUAL_GROUNDED",
+      "requiredVisibleFacts": ["raw data", "prediction"]
+    },
+    {
+      "id": "C04",
+      "category": "mixed",
+      "fixture": "whole.png",
+      "page": 4,
+      "selection": {"pageNumber": 4, "source": "circle", "bounds": {"x": 0.42, "y": 0.18, "width": 0.48, "height": 0.56}, "label": "Vùng khoanh"},
+      "boundedText": "Deep Learning: Raw Data, Neural Network, Prediction",
+      "needsOcr": false,
+      "question": "Theo chiều mũi tên, nhánh nào đi qua neural network?",
+      "expectedRoute": "VISUAL_GROUNDED",
+      "requiredVisibleFacts": ["deep learning", "neural network"]
+    },
+    {
+      "id": "C05",
+      "category": "scanned",
+      "fixture": "whole.png",
+      "page": 5,
+      "selection": {"pageNumber": 5, "source": "snip", "bounds": {"x": 0.06, "y": 0.1, "width": 0.88, "height": 0.7}, "label": "Vùng cắt"},
+      "boundedText": "",
+      "needsOcr": true,
+      "question": "Đầu ra cuối của hai nhánh trong ảnh là gì?",
+      "expectedRoute": "VISUAL_GROUNDED",
+      "requiredVisibleFacts": ["prediction"]
+    },
+    {
+      "id": "C06",
+      "category": "scanned",
+      "fixture": "ml-branch.png",
+      "page": 6,
+      "selection": {"pageNumber": 6, "source": "circle", "bounds": {"x": 0.1, "y": 0.16, "width": 0.78, "height": 0.58}, "label": "Vùng khoanh"},
+      "boundedText": "",
+      "needsOcr": true,
+      "question": "Phần ảnh được khoanh có hand-crafted features dùng để làm gì?",
+      "expectedRoute": "VISUAL_GROUNDED",
+      "requiredVisibleFacts": ["hand-crafted"]
+    },
+    {
+      "id": "C07",
+      "category": "scanned",
+      "fixture": "tiny-unreadable.png",
+      "page": 7,
+      "selection": {"pageNumber": 7, "source": "detected-image", "bounds": {"x": 0.2, "y": 0.2, "width": 0.6, "height": 0.5}, "label": "Vùng hình 1"},
+      "boundedText": "",
+      "needsOcr": true,
+      "question": "Phân tích chữ và các bước trong ảnh này.",
+      "expectedRoute": "NEED_BETTER_IMAGE",
+      "requiredVisibleFacts": []
+    },
+    {
+      "id": "C08",
+      "category": "recovery",
+      "fixture": "missing-labels.png",
+      "page": 8,
+      "selection": {"pageNumber": 8, "source": "snip", "bounds": {"x": 0.34, "y": 0.22, "width": 0.34, "height": 0.36}, "label": "Vùng cắt"},
+      "boundedText": "So sánh hai cách học từ dữ liệu.",
+      "needsOcr": false,
+      "question": "Giải thích phần này.",
+      "expectedRoute": "NEED_WIDER_REGION",
+      "requiredVisibleFacts": []
+    },
+    {
+      "id": "C09",
+      "category": "recovery",
+      "fixture": "blank.png",
+      "page": 9,
+      "selection": {"pageNumber": 9, "source": "circle", "bounds": {"x": 0.25, "y": 0.25, "width": 0.5, "height": 0.42}, "label": "Vùng khoanh"},
+      "boundedText": "",
+      "needsOcr": true,
+      "question": "Giải thích phần bảng được khoanh.",
+      "expectedRoute": "INSUFFICIENT",
+      "requiredVisibleFacts": []
+    },
+    {
+      "id": "C10",
+      "category": "recovery",
+      "fixture": "tiny-unreadable.png",
+      "page": 10,
+      "selection": {"pageNumber": 10, "source": "detected-image", "bounds": {"x": 0.18, "y": 0.18, "width": 0.64, "height": 0.54}, "label": "Vùng hình 1"},
+      "boundedText": "",
+      "needsOcr": true,
+      "question": "Đọc các nhãn nhỏ trong vùng hình này.",
+      "expectedRoute": "NEED_BETTER_IMAGE",
+      "requiredVisibleFacts": []
+    },
+    {
+      "id": "C11",
+      "category": "detector-fallback",
+      "fixture": "whole.png",
+      "page": 11,
+      "selection": {"pageNumber": 11, "source": "snip", "bounds": {"x": 0.08, "y": 0.12, "width": 0.84, "height": 0.66}, "label": "Vùng cắt"},
+      "boundedText": "So sánh Machine Learning và Deep Learning.",
+      "needsOcr": false,
+      "question": "Điểm khác nhau chính giữa hai nhánh là gì?",
+      "expectedRoute": "VISUAL_GROUNDED",
+      "requiredVisibleFacts": ["hand-crafted", "neural network"],
+      "detectorOutcome": "miss",
+      "manualFallback": "snip",
+      "detectedKind": "image"
+    },
+    {
+      "id": "C12",
+      "category": "detector-fallback",
+      "fixture": "missing-labels.png",
+      "page": 12,
+      "selection": {"pageNumber": 12, "source": "detected-image", "bounds": {"x": 0.28, "y": 0.2, "width": 0.42, "height": 0.4}, "label": "Vùng hình 1"},
+      "boundedText": "So sánh hai cách học từ dữ liệu.",
+      "needsOcr": false,
+      "question": "Tóm tắt cả hai nhánh từ vùng được phát hiện này.",
+      "expectedRoute": "NEED_WIDER_REGION",
+      "requiredVisibleFacts": [],
+      "detectorOutcome": "false-positive",
+      "manualFallback": "circle",
+      "detectedKind": "vector"
+    }
+  ]
+}

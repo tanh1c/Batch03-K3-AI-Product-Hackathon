@@ -1,6 +1,11 @@
 import * as pdfjsLib from "/vendor/pdf.mjs";
 import { toPixelBounds } from "/geometry.mjs";
+import { extractPdfContext } from "/pdf-context.mjs";
+import { detectPageRegions } from "/pdf-regions.mjs";
+import { circlePointsToBounds, createSelection } from "/selection-geometry.mjs";
+import { createSelectionOverlay } from "/selection-overlay.mjs";
 import { createSnipSelection } from "/snip.mjs";
+import { buildVisualRequest, formatSelectionProvenance } from "/visual-request.mjs";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = "/vendor/pdf.worker.mjs";
 
@@ -95,6 +100,11 @@ const state = {
   selectionPage: 1,
   snipSelection: null,
   visualSelection: null,
+  pdfSelection: null,
+  pdfSelectionAnnotationId: null,
+  suggestionsEnabled: false,
+  pdfWorkEpoch: 0,
+  pdfExtractionController: null,
   noteDraftPage: 1,
   chat: [],
   questionCount: stored.questionDate === todayKey ? (stored.questionCount || 0) : 0,
@@ -128,9 +138,11 @@ const elements = {
   zoomLabel: document.querySelector("#zoomLabel"),
   pageNotePill: document.querySelector("#pageNotePill"),
   composerPage: document.querySelector("#composerPage"),
+  clearComposerContext: document.querySelector("#clearComposerContext"),
   selectionMenu: document.querySelector("#selectionMenu"),
   moreToolsButton: document.querySelector("#moreToolsButton"),
   moreToolsPanel: document.querySelector("#moreToolsPanel"),
+  regionSuggestionsButton: document.querySelector("#regionSuggestionsButton"),
   drawingOptions: document.querySelector("#drawingOptions"),
   strokeWidthInput: document.querySelector("#strokeWidthInput"),
   highlightPopover: document.querySelector("#highlightPopover"),
@@ -190,6 +202,8 @@ function bindEvents() {
   document.querySelector("#undoButton").addEventListener("click", undoAnnotation);
   document.querySelector("#clearButton").addEventListener("click", clearPageAnnotations);
   elements.moreToolsButton.addEventListener("click", toggleMoreToolsPanel);
+  elements.regionSuggestionsButton.addEventListener("click", () => setRegionSuggestions(!state.suggestionsEnabled));
+  elements.clearComposerContext.addEventListener("click", clearComposerSelection);
   document.querySelector("#saveNoteButton").addEventListener("click", saveNote);
   document.querySelector("#aiStatusButton").addEventListener("click", () => showToast(state.aiConfigured ? `Tutor đã cấu hình ${state.aiProvider}/${state.aiModel}.` : `Tutor đang ở chế độ demo. Hãy cấu hình ${state.aiProvider || "AI provider"} trên server.`));
 
@@ -287,9 +301,10 @@ function renderLibrary() {
 async function activateDocument(id) {
   if (id === state.document.id) return;
   if (id === "demo-foundation") {
+    invalidatePdfWork();
     cancelPdfRenders();
     clearVisualSelection();
-    clearSnipSelection();
+    clearPdfSelection();
     state.document = { id: "demo-foundation", name: "AI trong hành động.pdf", type: "demo" };
     state.pdfDocument = null;
     state.pdfPages = [];
@@ -368,14 +383,19 @@ async function handleFile(file) {
 }
 
 async function loadPdf(file, docMeta) {
+  invalidatePdfWork();
+  const epoch = state.pdfWorkEpoch;
   cancelPdfRenders();
   clearVisualSelection();
-  clearSnipSelection();
+  clearPdfSelection();
   showLoading(true, "Đang mở PDF…");
+  let pdf = null;
   try {
     const data = new Uint8Array(await file.arrayBuffer());
+    if (epoch !== state.pdfWorkEpoch) return;
     const loadingTask = pdfjsLib.getDocument({ data });
-    const pdf = await loadingTask.promise;
+    pdf = await loadingTask.promise;
+    if (epoch !== state.pdfWorkEpoch) return;
     state.document = docMeta;
     state.pdfDocument = pdf;
     state.pdfPages = [];
@@ -388,6 +408,7 @@ async function loadPdf(file, docMeta) {
 
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
       const page = await pdf.getPage(pageNumber);
+      if (epoch !== state.pdfWorkEpoch) return;
       const viewport = page.getViewport({ scale: 1 });
       let text = "";
       let textContent = null;
@@ -395,7 +416,8 @@ async function loadPdf(file, docMeta) {
         textContent = await page.getTextContent();
         text = textContent.items.map((item) => item.str).join(" ").replace(/\s+/g, " ").trim();
       } catch { text = ""; }
-      state.pdfPages.push({ page, baseWidth: viewport.width, baseHeight: viewport.height, textContent, renderedZoom: 0, textLayerTask: null });
+      if (epoch !== state.pdfWorkEpoch) return;
+      state.pdfPages.push({ page, baseWidth: viewport.width, baseHeight: viewport.height, textContent, renderedZoom: 0, textLayerTask: null, renderPromise: null, operatorListPromise: null, candidates: null, detectionPromise: null, overlay: null });
       state.pageTexts.push(text);
       const normalizedWidth = 1000;
       const normalizedHeight = normalizedWidth * (viewport.height / viewport.width);
@@ -404,8 +426,12 @@ async function loadPdf(file, docMeta) {
       elements.pagesHost.appendChild(shell);
       setupAnnotationLayer(shell, pageNumber);
       wireReadInteractions(shell, pageNumber);
+      setupPdfPageOverlay(state.pdfPages.at(-1), shell, pageNumber);
       elements.loadingDetail.textContent = `Đang đọc ${pageNumber} / ${pdf.numPages} trang`;
-      if (pageNumber % 8 === 0) await new Promise((resolve) => requestAnimationFrame(resolve));
+      if (pageNumber % 8 === 0) {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        if (epoch !== state.pdfWorkEpoch) return;
+      }
     }
 
     setupLazyPdfRendering();
@@ -416,11 +442,13 @@ async function loadPdf(file, docMeta) {
     resetChat();
     showToast(`Đã mở ${file.name} · ${pdf.numPages} trang`, "success");
   } catch (error) {
+    if (epoch !== state.pdfWorkEpoch) return;
     console.error(error);
     showToast("Không thể đọc PDF này. File có thể bị mã hóa hoặc không hợp lệ.", "error");
     if (!state.pdfDocument) renderDemoDocument();
   } finally {
-    showLoading(false);
+    if (epoch !== state.pdfWorkEpoch) pdf?.destroy();
+    if (epoch === state.pdfWorkEpoch) showLoading(false);
   }
 }
 
@@ -432,14 +460,20 @@ function setupLazyPdfRendering() {
   elements.pagesHost.querySelectorAll(".page-shell").forEach((shell) => state.renderObserver.observe(shell));
 }
 
-async function renderPdfPage(pageNumber) {
+function renderPdfPage(pageNumber) {
   const pageState = state.pdfPages[pageNumber - 1];
   const shell = getPageShell(pageNumber);
-  if (!pageState || !shell || pageState.renderedZoom === state.zoom) return;
+  if (!pageState || !shell) return Promise.resolve();
+  if (pageState.renderPromise) return pageState.renderPromise;
+  if (pageState.renderedZoom === state.zoom) {
+    if (state.suggestionsEnabled) ensurePdfPageRegions(pageNumber, state.pdfWorkEpoch);
+    return Promise.resolve();
+  }
   const canvas = shell.querySelector(".pdf-canvas");
   const skeleton = shell.querySelector(".pdf-skeleton");
-  if (!canvas) return;
-  const cssWidth = 1000 * state.zoom;
+  if (!canvas) return Promise.resolve();
+  const zoom = state.zoom;
+  const cssWidth = 1000 * zoom;
   const scale = cssWidth / pageState.baseWidth;
   const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
   const viewport = pageState.page.getViewport({ scale: scale * pixelRatio });
@@ -447,22 +481,25 @@ async function renderPdfPage(pageNumber) {
   canvas.height = Math.ceil(viewport.height);
   canvas.style.width = `${Math.round(viewport.width / pixelRatio)}px`;
   canvas.style.height = `${Math.round(viewport.height / pixelRatio)}px`;
-  const previous = state.renderTasks.get(pageNumber);
-  if (previous) { try { previous.cancel(); } catch { /* no-op */ } }
   const task = pageState.page.render({ canvasContext: canvas.getContext("2d"), viewport });
   state.renderTasks.set(pageNumber, task);
-  try {
-    await task.promise;
-    if (pageState === state.pdfPages[pageNumber - 1]) {
-      pageState.renderedZoom = state.zoom;
+  const renderPromise = (async () => {
+    try {
+      await task.promise;
+      if (pageState !== state.pdfPages[pageNumber - 1] || zoom !== state.zoom) return;
+      pageState.renderedZoom = zoom;
       skeleton?.remove();
       await renderPdfTextLayer(pageState, shell, scale);
+      if (state.suggestionsEnabled) ensurePdfPageRegions(pageNumber, state.pdfWorkEpoch);
+    } catch (error) {
+      if (error?.name !== "RenderingCancelledException") console.error(error);
+    } finally {
+      if (state.renderTasks.get(pageNumber) === task) state.renderTasks.delete(pageNumber);
+      if (pageState.renderPromise === renderPromise) pageState.renderPromise = null;
     }
-  } catch (error) {
-    if (error?.name !== "RenderingCancelledException") console.error(error);
-  } finally {
-    if (state.renderTasks.get(pageNumber) === task) state.renderTasks.delete(pageNumber);
-  }
+  })();
+  pageState.renderPromise = renderPromise;
+  return renderPromise;
 }
 
 async function renderPdfTextLayer(pageState, shell, scale) {
@@ -483,7 +520,11 @@ async function renderPdfTextLayer(pageState, shell, scale) {
 function cancelPdfRenders() {
   state.renderTasks.forEach((task) => { try { task.cancel(); } catch { /* no-op */ } });
   state.renderTasks.clear();
-  state.pdfPages.forEach((pageState) => { try { pageState.textLayerTask?.cancel(); } catch { /* no-op */ } pageState.textLayerTask = null; });
+  state.pdfPages.forEach((pageState) => {
+    try { pageState.textLayerTask?.cancel(); } catch { /* no-op */ }
+    pageState.textLayerTask = null;
+    pageState.renderPromise = null;
+  });
   disconnectRenderObserver();
 }
 
@@ -492,7 +533,125 @@ function disconnectRenderObserver() {
   state.renderObserver = null;
 }
 
+function setupPdfPageOverlay(pageState, shell, pageNumber) {
+  const overlay = createSelectionOverlay({
+    container: shell.querySelector(".page-paper"),
+    onSelect: (candidate) => selectDetectedCandidate(pageNumber, candidate),
+  });
+  pageState.overlay = overlay;
+  if (pageState.candidates) overlay.render(pageState.candidates);
+  overlay.setEnabled(state.suggestionsEnabled);
+}
+
+function setRegionSuggestions(enabled) {
+  if (enabled && state.document.type !== "pdf") {
+    showToast("Gợi ý vùng chỉ khả dụng với PDF đã tải lên.");
+    return;
+  }
+  state.suggestionsEnabled = Boolean(enabled);
+  elements.regionSuggestionsButton.setAttribute("aria-pressed", String(state.suggestionsEnabled));
+  elements.regionSuggestionsButton.classList.toggle("active", state.suggestionsEnabled);
+  state.pdfPages.forEach((pageState, index) => {
+    pageState.overlay?.setEnabled(state.suggestionsEnabled);
+    if (state.suggestionsEnabled && pageState.renderedZoom === state.zoom) ensurePdfPageRegions(index + 1, state.pdfWorkEpoch);
+  });
+  if (state.suggestionsEnabled && state.mode !== "read") setMode("read");
+  showToast(state.suggestionsEnabled ? "Đã bật gợi ý vùng trên các trang đã hiển thị." : "Đã tắt gợi ý vùng.");
+}
+
+async function ensurePdfPageRegions(pageNumber, epoch) {
+  const pageState = state.pdfPages[pageNumber - 1];
+  if (!state.suggestionsEnabled || !pageState?.overlay) return;
+  if (pageState.candidates) {
+    pageState.overlay.render(pageState.candidates);
+    pageState.overlay.setEnabled(true);
+    return;
+  }
+  if (pageState.detectionPromise) return pageState.detectionPromise;
+  const documentId = state.document.id;
+  const overlay = pageState.overlay;
+  pageState.operatorListPromise ||= pageState.page.getOperatorList();
+  const detectionPromise = (async () => {
+    try {
+      const operatorList = await pageState.operatorListPromise;
+      const candidates = detectPageRegions({
+        pageNumber,
+        viewport: pageState.page.getViewport({ scale: 1 }),
+        textContent: pageState.textContent,
+        operatorList,
+      });
+      if (epoch !== state.pdfWorkEpoch || documentId !== state.document.id || pageState !== state.pdfPages[pageNumber - 1] || overlay !== pageState.overlay) return;
+      pageState.candidates = candidates;
+      overlay.render(candidates);
+      overlay.setEnabled(state.suggestionsEnabled);
+    } catch (error) {
+      if (epoch === state.pdfWorkEpoch && overlay === pageState.overlay) overlay.clear();
+      console.error(error);
+    } finally {
+      if (pageState.detectionPromise === detectionPromise) pageState.detectionPromise = null;
+    }
+  })();
+  pageState.detectionPromise = detectionPromise;
+  return detectionPromise;
+}
+
+function selectDetectedCandidate(pageNumber, candidate) {
+  if (state.document.type !== "pdf") return;
+  const source = candidate.kind === "text" ? "detected-text" : "detected-image";
+  setPdfSelection(createSelection({ pageNumber, source, bounds: candidate.bounds, label: candidate.label }), source === "detected-text" ? "Giải thích vùng chữ được gợi ý này." : "Giải thích vùng hình được gợi ý này.");
+}
+
+function setPdfSelection(selection, suggestedQuestion, annotationId = null) {
+  if (state.document.type !== "pdf") return;
+  const validated = createSelection(selection);
+  clearVisualSelection();
+  state.pdfSelection = validated;
+  state.pdfSelectionAnnotationId = annotationId;
+  state.snipSelection = validated;
+  state.currentPage = validated.pageNumber;
+  state.tutorOpen = true;
+  renderSnipSelection();
+  updateCurrentPageClass();
+  updateWorkspace();
+  updateChrome();
+  elements.chatInput.value = suggestedQuestion;
+  autoGrowComposer();
+  setTimeout(() => elements.chatInput.focus(), 60);
+}
+
+function clearPdfSelection() {
+  state.pdfSelection = null;
+  state.pdfSelectionAnnotationId = null;
+  state.snipSelection = null;
+  renderSnipSelection();
+  updateChrome();
+}
+
+function clearComposerSelection() {
+  clearPdfSelection();
+  clearVisualSelection();
+  elements.chatInput.value = "";
+  autoGrowComposer();
+  elements.chatInput.focus();
+  showToast("Đã bỏ vùng khỏi câu hỏi.", "success");
+}
+
+function invalidatePdfWork() {
+  state.pdfWorkEpoch += 1;
+  state.pdfExtractionController?.abort();
+  state.pdfExtractionController = null;
+  state.pdfPages.forEach((pageState) => {
+    pageState.overlay?.destroy();
+    pageState.overlay = null;
+    pageState.detectionPromise = null;
+  });
+  state.suggestionsEnabled = false;
+  elements.regionSuggestionsButton.setAttribute("aria-pressed", "false");
+  elements.regionSuggestionsButton.classList.remove("active");
+}
+
 function setMode(mode) {
+  if (mode !== "read" && state.suggestionsEnabled) setRegionSuggestions(false);
   state.mode = mode;
   document.querySelectorAll("[data-mode]").forEach((button) => button.classList.toggle("active", button.dataset.mode === mode));
   elements.moreToolsButton.classList.toggle("active", mode === "circle" || mode === "eraser");
@@ -626,12 +785,15 @@ function setupAnnotationLayer(shell, pageNumber) {
         showToast("Vùng chọn quá nhỏ. Hãy kéo một vùng lớn hơn.");
         return;
       }
-      clearVisualSelection();
-      state.snipSelection = selection;
-      state.currentPage = pageNumber;
-      renderSnipSelection();
-      updateCurrentPageClass();
-      updateChrome();
+      if (state.document.type === "pdf") setPdfSelection(selection, "Giải thích vùng đã cắt này.");
+      else {
+        clearVisualSelection();
+        state.snipSelection = selection;
+        state.currentPage = pageNumber;
+        renderSnipSelection();
+        updateCurrentPageClass();
+        updateChrome();
+      }
       showToast(`Đã chọn vùng trên trang ${pageNumber}.`, "success");
       return;
     }
@@ -747,6 +909,7 @@ function eraseAnnotationAtPoint(pageNumber, point, canvas) {
   const [removed] = annotations.splice(matchIndex, 1);
   if (state.activeHighlight?.id === removed.id) hideHighlightPopover();
   if (state.activeRegion?.id === removed.id) hideRegionPopover();
+  if (state.pdfSelectionAnnotationId === removed.id) clearPdfSelection();
   persistState();
   drawAnnotations(pageNumber);
   renderAnnotationMarkers(pageNumber);
@@ -809,7 +972,9 @@ function clearPageAnnotations() {
   const annotations = getAnnotations(state.currentPage);
   if (!annotations.length) return showToast("Trang này chưa có chú thích hình vẽ.");
   if (!window.confirm(`Xóa toàn bộ nét vẽ và highlight ở trang ${state.currentPage}?`)) return;
-  annotations.splice(0); hideHighlightPopover(); hideRegionPopover(); persistState(); drawAnnotations(state.currentPage); renderAnnotationMarkers(state.currentPage); updateChrome(); showToast("Đã xóa chú thích trên trang.", "success");
+  annotations.splice(0); hideHighlightPopover(); hideRegionPopover();
+  if (state.pdfSelection?.source === "circle" && state.pdfSelection.pageNumber === state.currentPage) clearPdfSelection();
+  persistState(); drawAnnotations(state.currentPage); renderAnnotationMarkers(state.currentPage); updateChrome(); showToast("Đã xóa chú thích trên trang.", "success");
 }
 
 function wireReadInteractions(shell, pageNumber) {
@@ -936,9 +1101,19 @@ function positionPopover(popover, x, y) {
 function showRegionPopover(pageNumber, annotation) {
   const paper = getPageShell(pageNumber)?.querySelector(".page-paper");
   if (!paper || !annotation.points?.length) return;
+  const selection = createSelection({
+    pageNumber,
+    source: "circle",
+    bounds: circlePointsToBounds(annotation.points, 0.025),
+    label: "Vùng khoanh",
+  });
   hideHighlightPopover();
   hideSelectionMenu();
-  state.activeRegion = { page: pageNumber, id: ensureAnnotationId(annotation) };
+  state.activeRegion = {
+    page: pageNumber,
+    id: ensureAnnotationId(annotation),
+    selection,
+  };
   elements.regionTitle.textContent = `Vùng khoanh Trang ${pageNumber}`;
   elements.regionPopover.classList.remove("hidden");
   const paperBounds = paper.getBoundingClientRect();
@@ -959,6 +1134,11 @@ function handleRegionAction(event) {
   const action = button.dataset.regionAction;
   if (action === "later") return hideRegionPopover();
   if (action === "tutor") {
+    if (state.document.type === "pdf") {
+      setPdfSelection(active.selection, "Giải thích vùng đã khoanh này.", active.id);
+      hideRegionPopover();
+      return;
+    }
     state.currentPage = active.page;
     state.tutorOpen = true;
     updateCurrentPageClass(); updateChrome(); updateWorkspace();
@@ -986,6 +1166,7 @@ function wireVisualInteractions(shell, pageNumber) {
 function selectVisualRegion(regionName, pageNumber) {
   const region = VISUAL_REGIONS[regionName];
   if (!region) return;
+  clearPdfSelection();
   state.visualSelection = { regionName, pageNumber };
   state.selectionText = "";
   state.currentPage = pageNumber;
@@ -1121,6 +1302,7 @@ function setZoom(nextZoom) {
 }
 
 function rebuildPdfShells() {
+  invalidatePdfWork();
   cancelPdfRenders();
   elements.pagesHost.innerHTML = "";
   state.pdfPages.forEach((pageState, index) => {
@@ -1132,6 +1314,7 @@ function rebuildPdfShells() {
     elements.pagesHost.appendChild(shell);
     setupAnnotationLayer(shell, index + 1);
     wireReadInteractions(shell, index + 1);
+    setupPdfPageOverlay(pageState, shell, index + 1);
   });
   setupLazyPdfRendering(); updatePageModes(); updateCurrentPageClass(); renderSnipSelection();
 }
@@ -1181,9 +1364,13 @@ function updateChrome() {
   const highlightNoteCount = getAnnotations(state.currentPage).filter((annotation) => annotation.kind === "text-highlight" && annotation.note?.trim()).length;
   const count = getNotes(state.currentPage).length + highlightNoteCount;
   elements.pageNotePill.textContent = `Trang ${state.currentPage} · ${count} note`;
-  elements.composerPage.textContent = state.visualSelection
-    ? `${VISUAL_REGIONS[state.visualSelection.regionName].label} · slide ${state.visualSelection.pageNumber}`
-    : `trang ${state.currentPage}`;
+  const hasVisualContext = Boolean(state.pdfSelection || state.visualSelection);
+  elements.composerPage.textContent = state.pdfSelection
+    ? `${state.pdfSelection.label} · slide ${state.pdfSelection.pageNumber}`
+    : state.visualSelection
+      ? `${VISUAL_REGIONS[state.visualSelection.regionName].label} · slide ${state.visualSelection.pageNumber}`
+      : `trang ${state.currentPage}`;
+  elements.clearComposerContext.hidden = !hasVisualContext;
   elements.quotaLabel.textContent = `${state.questionCount} / 15 câu`;
   elements.quotaProgress.style.width = `${Math.min(100, state.questionCount / 15 * 100)}%`;
 }
@@ -1219,6 +1406,9 @@ async function checkApiHealth() {
 async function sendQuestion(event) {
   event.preventDefault();
   const question = elements.chatInput.value.trim();
+  const pdfSelection = state.document.type === "pdf" && state.pdfSelection
+    ? createSelection(state.pdfSelection)
+    : null;
   const visualSelection = state.visualSelection ? { ...state.visualSelection } : null;
   if (!question || state.sending) return;
   if (state.questionCount >= 15) return showToast("Bạn đã dùng hết quota demo 15 câu hôm nay.", "error");
@@ -1229,12 +1419,17 @@ async function sendQuestion(event) {
   const typingId = showTyping();
 
   try {
-    if (visualSelection) await sendVisualQuestion(question, visualSelection);
+    if (pdfSelection) await sendPdfVisualQuestion(question, pdfSelection);
+    else if (visualSelection) await sendVisualQuestion(question, visualSelection);
     else await sendTextQuestion(question);
     state.questionCount += 1;
     persistState(); updateChrome();
   } catch (error) {
-    state.chat.push({ role: "assistant", answer: `Mình chưa thể trả lời lúc này: ${error.message}`, citations: [], confidence: 0, mode: "error" });
+    if (error?.name === "AbortError") {
+      showToast("Yêu cầu vùng chọn đã dừng vì tài liệu hoặc mức zoom thay đổi.");
+    } else {
+      state.chat.push({ role: "assistant", answer: `Mình chưa thể trả lời lúc này: ${error.message}`, citations: [], confidence: 0, mode: "error" });
+    }
   } finally {
     document.querySelector(`[data-typing-id="${typingId}"]`)?.remove();
     state.sending = false; elements.sendButton.disabled = false; renderChat(true); elements.chatInput.focus();
@@ -1257,6 +1452,67 @@ async function sendTextQuestion(question) {
     confidence: data.confidence || 65,
     mode: data.mode || "fallback",
   });
+}
+
+async function sendPdfVisualQuestion(question, selection) {
+  const documentId = state.document.id;
+  const pageState = state.pdfPages[selection.pageNumber - 1];
+  const epoch = state.pdfWorkEpoch;
+  if (!pageState) throw new Error("Không tìm thấy trang PDF đã chọn.");
+
+  state.pdfExtractionController?.abort();
+  const controller = new AbortController();
+  state.pdfExtractionController = controller;
+  const renderPromise = renderPdfPage(selection.pageNumber);
+  const shell = getPageShell(selection.pageNumber);
+  const canvas = shell?.querySelector(".pdf-canvas");
+  const textLayer = shell?.querySelector(".pdf-text-layer");
+  if (!canvas || !textLayer) throw new Error("Trang PDF chưa sẵn sàng để cắt vùng.");
+
+  try {
+    const context = await extractPdfContext({
+      pageNumber: selection.pageNumber,
+      canvas,
+      textLayer,
+      renderPromise,
+      signal: controller.signal,
+    }, selection);
+    if (
+      controller.signal.aborted
+      || epoch !== state.pdfWorkEpoch
+      || documentId !== state.document.id
+      || pageState !== state.pdfPages[selection.pageNumber - 1]
+    ) {
+      throw new DOMException("PDF selection is stale", "AbortError");
+    }
+
+    const request = buildVisualRequest({ selection, context, question });
+    const body = JSON.stringify(request);
+    if (new Blob([body]).size > 10 * 1024 * 1024) {
+      throw new Error("Vùng đã chọn quá lớn. Hãy chọn lại một vùng nhỏ hơn bằng Snip.");
+    }
+
+    const response = await fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      signal: controller.signal,
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Visual Tutor chưa thể trả lời.");
+    state.chat.push({
+      role: "assistant",
+      answer: result.route === "VISUAL_GROUNDED" ? result.answer : result.reason,
+      mode: "visual",
+      visualRoute: result.route,
+      visualPage: selection.pageNumber,
+      visualProvenance: formatSelectionProvenance(selection),
+      pdfVisual: true,
+      recoveryAction: result.recovery_action,
+    });
+  } finally {
+    if (state.pdfExtractionController === controller) state.pdfExtractionController = null;
+  }
 }
 
 async function sendVisualQuestion(question, selection) {
@@ -1310,16 +1566,24 @@ function renderChat(scrollToBottom = false) {
   }).join("");
   elements.chatMessages.querySelectorAll("[data-source-page]").forEach((button) => button.addEventListener("click", () => scrollToPage(Number(button.dataset.sourcePage))));
   elements.chatMessages.querySelectorAll("[data-visual-recovery]").forEach((button) => button.addEventListener("click", () => selectVisualRegion("whole", Number(button.dataset.visualRecovery))));
+  elements.chatMessages.querySelectorAll("[data-pdf-visual-recovery]").forEach((button) => button.addEventListener("click", () => recoverPdfSelectionWithSnip(Number(button.dataset.pdfVisualRecovery))));
   if (scrollToBottom) requestAnimationFrame(() => { elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight; });
 }
 
 function renderVisualEvidence(message) {
-  if (message.visualRoute === "VISUAL_GROUNDED") return `<div class="visual-provenance">Dựa trên vùng hình ở slide ${message.visualPage}</div>`;
+  if (message.visualRoute === "VISUAL_GROUNDED") {
+    const provenance = message.pdfVisual
+      ? message.visualProvenance
+      : `Dựa trên vùng hình ở slide ${message.visualPage}`;
+    return `<div class="visual-provenance">${escapeHtml(provenance)}</div>`;
+  }
   const action = message.recoveryAction ? `<p>${escapeHtml(message.recoveryAction)}</p>` : "";
-  const widerButton = message.visualRoute === "NEED_WIDER_REGION"
-    ? `<button type="button" class="visual-recovery" data-visual-recovery="${message.visualPage}">Chọn toàn bộ sơ đồ</button>`
-    : "";
-  return `<div class="visual-recovery-card"><strong>${visualRouteLabel(message.visualRoute)}</strong>${action}${widerButton}</div>`;
+  const recoveryButton = message.pdfVisual
+    ? `<button type="button" class="visual-recovery" data-pdf-visual-recovery="${message.visualPage}">Chọn lại bằng Snip</button>`
+    : message.visualRoute === "NEED_WIDER_REGION"
+      ? `<button type="button" class="visual-recovery" data-visual-recovery="${message.visualPage}">Chọn toàn bộ sơ đồ</button>`
+      : "";
+  return `<div class="visual-recovery-card"><strong>${visualRouteLabel(message.visualRoute)}</strong>${action}${recoveryButton}</div>`;
 }
 
 function visualRouteLabel(route) {
@@ -1328,6 +1592,13 @@ function visualRouteLabel(route) {
     NEED_BETTER_IMAGE: "Cần hình rõ hơn",
     INSUFFICIENT: "Chưa đủ căn cứ để trả lời",
   }[route] || "Chưa thể phân tích vùng hình";
+}
+
+function recoverPdfSelectionWithSnip(pageNumber) {
+  if (state.document.type !== "pdf") return;
+  clearPdfSelection();
+  scrollToPage(pageNumber);
+  setMode("snip");
 }
 
 function showTyping() {

@@ -197,5 +197,6 @@ test("scoped stylesheet protects PDF interactions and keyboard focus", async () 
   assert.match(css, /\.selection-overlay\s*\{[^}]*pointer-events:\s*none/s);
   assert.match(css, /\.selection-overlay__candidate\s*\{[^}]*pointer-events:\s*auto/s);
   assert.match(css, /\.selection-overlay__candidate:focus-visible/);
+  assert.match(css, /\.selection-overlay--enabled \.selection-overlay__candidate\[data-candidate-kind="text"\]/);
   assert.doesNotMatch(css, /(^|\n)\s*(button|canvas|\.page-shell)\s*\{/);
 });

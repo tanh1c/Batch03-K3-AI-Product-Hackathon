@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Visual Context Rescue — VLearn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* === THEME === */
+:root {
+  --stage-bg: #06111b;
+  --slide-bg: #0b1b2b;
+  --navy: #0b1b2b;
+  --navy-2: #10283a;
+  --paper: #f3efe4;
+  --yellow: #f6c744;
+  --red: #ff5d4a;
+  --cyan: #62d4cf;
+  --white: #f8fbfc;
+  --muted: #a8b8c3;
+  --ink: #07121d;
+  --grid: rgba(255, 255, 255, 0.065);
+  --ease: cubic-bezier(.18, .85, .25, 1);
+}
+
+/* ===========================================
+   FIXED 16:9 STAGE: MANDATORY BASE STYLES
+   Include this ENTIRE file in every presentation.
+   Slides are authored at 1920×1080 and scaled as a whole.
+   =========================================== */
+
+/* 1. Lock the browser viewport */
+html,
+body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: var(--stage-bg, #000);
+}
+
+/* 2. Full-window deck viewport */
+.deck-viewport {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    background: var(--stage-bg, #000);
+}
+
+/* 3. Fixed 16:9 design canvas.
+   JavaScript sets transform: translate(...) scale(...). */
+.deck-stage {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    transform-origin: 0 0;
+    background: var(--slide-bg, #fff);
+}
+
+/* 4. Slides stack inside the fixed stage.
+   Content must be laid out at 1920×1080, not reflowed per device. */
+.slide {
+    position: absolute;
+    inset: 0;
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    display: block;
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    background: var(--slide-bg, #fff);
+}
+
+.slide.active,
+.slide.visible {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    z-index: 1;
+}
+
+/* 5. Keep media inside authored slide bounds */
+img,
+video,
+canvas,
+svg {
+    max-width: 100%;
+    max-height: 100%;
+}
+
+/* 6. Presentation chrome stays outside the slide design system */
+.deck-controls {
+    position: fixed;
+    left: 50%;
+    bottom: 22px;
+    transform: translateX(-50%);
+    z-index: 1000;
+}
+
+/* 7. Print one fixed-size slide per page */
+@media print {
+    html,
+    body {
+        width: 1920px;
+        height: auto;
+        overflow: visible;
+        background: #fff;
+    }
+
+    .deck-viewport {
+        position: static;
+        overflow: visible;
+        background: #fff;
+    }
+
+    .deck-stage {
+        position: static;
+        width: auto;
+        height: auto;
+        transform: none !important;
+        background: none;
+    }
+
+    .slide {
+        position: relative;
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        width: 1920px;
+        height: 1080px;
+        break-after: page;
+        page-break-after: always;
+    }
+
+    .slide:last-child {
+        break-after: auto;
+        page-break-after: auto;
+    }
+
+    .deck-controls {
+        display: none !important;
+    }
+}
+
+/* 8. Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.2s !important;
+    }
+}
+
+/* === RESET & TYPOGRAPHY === */
+* { box-sizing: border-box; }
+button { font: inherit; }
+.slide {
+  color: var(--white);
+  font-family: "IBM Plex Sans", sans-serif;
+  background:
+    radial-gradient(circle at 77% 24%, rgba(98, 212, 207, .11), transparent 29%),
+    linear-gradient(125deg, var(--navy) 0 67%, var(--navy-2) 67%);
+}
+.slide::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: .78;
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: linear-gradient(90deg, transparent 4%, black 46%, black 100%);
+  pointer-events: none;
+}
+.display {
+  margin: 0;
+  font-family: "Archivo Black", sans-serif;
+  font-weight: 400;
+  letter-spacing: -.055em;
+  text-transform: uppercase;
+}
+.mono {
+  font-family: "IBM Plex Mono", monospace;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+
+/* === SHARED SLIDE CHROME === */
+.slide-head {
+  position: absolute;
+  top: 58px;
+  left: 82px;
+  right: 82px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 17px;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+.brand-mark { display: flex; align-items: center; gap: 16px; }
+.brand-mark i {
+  width: 15px;
+  height: 15px;
+  background: var(--yellow);
+  box-shadow: 22px 0 0 var(--red);
+}
+.slide-no { color: var(--muted); }
+.speaker {
+  position: absolute;
+  left: 82px;
+  bottom: 58px;
+  z-index: 4;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  color: var(--muted);
+  font: 500 16px "IBM Plex Mono", monospace;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.speaker b {
+  color: var(--ink);
+  background: var(--yellow);
+  padding: 10px 14px;
+  font-weight: 600;
+}
+.speaker time { color: var(--cyan); }
+.kicker {
+  color: var(--cyan);
+  font: 600 19px "IBM Plex Mono", monospace;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.accent-yellow { color: var(--yellow); }
+.accent-red { color: var(--red); }
+.accent-cyan { color: var(--cyan); }
+
+/* === MOTION === */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity .65s var(--ease), transform .65s var(--ease);
+}
+.reveal-left {
+  opacity: 0;
+  transform: translateX(-34px);
+  transition: opacity .65s var(--ease), transform .65s var(--ease);
+}
+.reveal-scale {
+  opacity: 0;
+  transform: scale(.96);
+  transition: opacity .7s var(--ease), transform .7s var(--ease);
+}
+.visible .reveal,
+.visible .reveal-left,
+.visible .reveal-scale { opacity: 1; transform: none; }
+.delay-1 { transition-delay: .1s; }
+.delay-2 { transition-delay: .2s; }
+.delay-3 { transition-delay: .3s; }
+.delay-4 { transition-delay: .4s; }
+
+/* === SLIDE 1: TITLE === */
+.title-copy { position: absolute; left: 82px; top: 205px; width: 1080px; z-index: 2; }
+.title-copy .kicker { margin-bottom: 28px; }
+.title-copy h1 { font-size: 108px; line-height: .9; }
+.title-copy p {
+  width: 900px;
+  margin: 40px 0 0;
+  color: #d5dfe4;
+  font-size: 29px;
+  line-height: 1.45;
+}
+.pdf-card {
+  position: absolute;
+  top: 176px;
+  right: 116px;
+  width: 605px;
+  height: 718px;
+  padding: 48px;
+  color: var(--ink);
+  background: var(--paper);
+  transform: rotate(1.5deg);
+  box-shadow: 22px 22px 0 rgba(0, 0, 0, .28);
+}
+.pdf-card__meta { display: flex; justify-content: space-between; font: 600 15px "IBM Plex Mono"; letter-spacing: .1em; }
+.pdf-card h2 { margin: 46px 0 0; font-size: 40px; line-height: 1.08; }
+.crop-diagram { position: absolute; left: 48px; right: 48px; top: 224px; height: 318px; }
+.crop-node {
+  position: absolute;
+  top: 106px;
+  width: 175px;
+  height: 98px;
+  display: grid;
+  place-items: center;
+  border: 4px solid var(--ink);
+  font: 600 16px "IBM Plex Mono";
+}
+.crop-node:first-child { left: 14px; }
+.crop-node:nth-child(2) { right: 14px; }
+.crop-link { position: absolute; left: 194px; right: 194px; top: 152px; height: 5px; background: var(--ink); }
+.crop-link::after { content: ""; position: absolute; right: -2px; top: -10px; border-left: 18px solid var(--ink); border-top: 12px solid transparent; border-bottom: 12px solid transparent; }
+.crop-frame { position: absolute; left: 24px; right: 20px; top: 62px; height: 226px; border: 9px solid var(--red); }
+.crop-frame i { position: absolute; width: 18px; height: 18px; background: var(--red); }
+.crop-frame i:nth-child(1) { left: -13px; top: -13px; }
+.crop-frame i:nth-child(2) { right: -13px; top: -13px; }
+.crop-frame i:nth-child(3) { left: -13px; bottom: -13px; }
+.crop-frame i:nth-child(4) { right: -13px; bottom: -13px; }
+.explicit-send {
+  position: absolute;
+  right: -28px;
+  bottom: -28px;
+  padding: 15px 19px;
+  background: var(--yellow);
+  font: 600 15px "IBM Plex Mono";
+  transform: rotate(-1.5deg);
+}
+.promise-strip { position: absolute; left: 82px; bottom: 118px; display: flex; gap: 14px; }
+.promise-strip span { padding: 12px 17px; border: 1px solid rgba(255, 255, 255, .26); font: 500 14px "IBM Plex Mono"; letter-spacing: .08em; }
+.promise-strip span:first-child { color: var(--cyan); border-color: var(--cyan); }
+
+/* === SLIDE 2: EVIDENCE === */
+.evidence-title { position: absolute; left: 82px; top: 180px; width: 870px; z-index: 2; }
+.evidence-title h2 { margin: 20px 0 0; font-size: 82px; line-height: .96; }
+.evidence-title p { margin: 31px 0 0; width: 700px; color: var(--muted); font-size: 27px; line-height: 1.42; }
+.evidence-stat {
+  position: absolute;
+  top: 180px;
+  right: 116px;
+  width: 690px;
+  height: 630px;
+  color: var(--ink);
+  background: var(--paper);
+  transform: rotate(-1deg);
+  box-shadow: 20px 20px 0 rgba(0, 0, 0, .24);
+  padding: 58px;
+}
+.evidence-stat .big { font: 400 200px/.8 "Archivo Black"; letter-spacing: -.08em; color: var(--red); }
+.evidence-stat h3 { margin: 34px 0 0; font-size: 35px; line-height: 1.12; }
+.evidence-stat p { margin: 24px 0 0; font-size: 22px; line-height: 1.45; }
+.mining-line { position: absolute; left: 82px; top: 720px; width: 900px; display: flex; gap: 22px; align-items: center; }
+.mining-line strong { font: 400 76px "Archivo Black"; color: var(--yellow); }
+.mining-line span { width: 500px; color: #d5dfe4; font-size: 24px; line-height: 1.35; }
+
+/* === SLIDE 3: LIVE FLOW === */
+.flow-title { position: absolute; left: 82px; top: 168px; z-index: 2; }
+.flow-title h2 { margin: 18px 0 0; font-size: 74px; line-height: .96; }
+.live-badge { position: absolute; top: 178px; right: 90px; padding: 15px 20px; color: var(--ink); background: var(--red); font: 600 17px "IBM Plex Mono"; letter-spacing: .1em; }
+.flow-track { position: absolute; left: 82px; right: 82px; top: 430px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 42px; z-index: 2; }
+.flow-step { position: relative; min-height: 250px; padding: 30px 24px; border-top: 4px solid var(--cyan); }
+.flow-step::after { content: "→"; position: absolute; right: -37px; top: 90px; color: var(--yellow); font: 400 42px "Archivo Black"; }
+.flow-step:last-child::after { display: none; }
+.flow-step b { display: block; color: var(--yellow); font: 600 18px "IBM Plex Mono"; letter-spacing: .1em; }
+.flow-step h3 { margin: 25px 0 0; font-size: 34px; line-height: 1.1; }
+.flow-step p { margin: 20px 0 0; color: var(--muted); font-size: 21px; line-height: 1.4; }
+.flow-step.send-step { border-color: var(--red); }
+.zero-call { position: absolute; left: 82px; bottom: 125px; color: var(--cyan); font: 600 22px "IBM Plex Mono"; letter-spacing: .08em; }
+.demo-question { position: absolute; right: 82px; bottom: 112px; width: 755px; padding: 20px 24px; color: var(--ink); background: var(--paper); font-size: 21px; line-height: 1.35; }
+
+/* === SLIDE 4: AI DECISION === */
+.decision-title { position: absolute; left: 82px; top: 168px; width: 760px; z-index: 2; }
+.decision-title h2 { margin: 18px 0 0; font-size: 74px; line-height: .96; }
+.route-orbit { position: absolute; left: 840px; top: 162px; width: 930px; height: 650px; }
+.route-core { position: absolute; left: 310px; top: 225px; width: 300px; height: 190px; display: grid; place-items: center; border: 6px solid var(--yellow); background: var(--navy); text-align: center; font: 600 21px/1.4 "IBM Plex Mono"; }
+.route-card { position: absolute; width: 285px; min-height: 138px; padding: 24px; border: 2px solid rgba(255, 255, 255, .32); background: rgba(11, 27, 43, .88); }
+.route-card b { display: block; font: 600 16px "IBM Plex Mono"; letter-spacing: .06em; }
+.route-card span { display: block; margin-top: 14px; color: var(--muted); font-size: 19px; line-height: 1.32; }
+.route-card.grounded { left: 0; top: 0; border-color: var(--cyan); }
+.route-card.wider { right: 0; top: 0; border-color: var(--yellow); }
+.route-card.better { left: 0; bottom: 0; border-color: var(--red); }
+.route-card.insufficient { right: 0; bottom: 0; border-color: var(--muted); }
+.route-line { position: absolute; height: 2px; background: rgba(255, 255, 255, .34); transform-origin: left center; }
+.route-line.l1 { left: 264px; top: 145px; width: 170px; transform: rotate(33deg); }
+.route-line.l2 { left: 586px; top: 239px; width: 170px; transform: rotate(-33deg); }
+.route-line.l3 { left: 264px; bottom: 145px; width: 170px; transform: rotate(-33deg); }
+.route-line.l4 { left: 586px; bottom: 239px; width: 170px; transform: rotate(33deg); }
+.control-list { position: absolute; left: 82px; top: 525px; width: 630px; display: grid; gap: 20px; }
+.control-list div { display: grid; grid-template-columns: 52px 1fr; gap: 18px; align-items: start; }
+.control-list b { display: grid; place-items: center; width: 45px; height: 45px; color: var(--ink); background: var(--yellow); font: 600 17px "IBM Plex Mono"; }
+.control-list p { margin: 0; color: #d5dfe4; font-size: 23px; line-height: 1.38; }
+
+/* === SLIDE 5: EVALUATION === */
+.eval-title { position: absolute; left: 82px; top: 155px; z-index: 2; }
+.eval-title h2 { margin: 17px 0 0; font-size: 72px; line-height: .96; }
+.score-grid { position: absolute; left: 82px; top: 390px; width: 1070px; display: grid; gap: 29px; }
+.score-row { display: grid; grid-template-columns: 275px 1fr 110px; gap: 24px; align-items: center; }
+.score-label b { display: block; font-size: 24px; }
+.score-label span { color: var(--muted); font-size: 17px; }
+.bar { position: relative; height: 46px; background: rgba(255, 255, 255, .11); }
+.bar i { display: block; height: 100%; background: var(--cyan); }
+.bar .bar-fail { background: var(--red); }
+.bar::after { content: "BAR"; position: absolute; top: -24px; color: var(--yellow); font: 600 13px "IBM Plex Mono"; }
+.bar.at-80::after { left: 80%; }
+.bar.at-83::after { left: 83.333%; }
+.score { font: 400 36px "Archivo Black"; text-align: right; }
+.gate-note { color: var(--red); }
+.failure-card { position: absolute; top: 170px; right: 85px; width: 610px; height: 700px; padding: 42px; color: var(--ink); background: var(--paper); transform: rotate(1deg); box-shadow: 20px 20px 0 rgba(0, 0, 0, .25); }
+.failure-card .tag { display: inline-block; padding: 11px 15px; color: var(--paper); background: var(--red); font: 600 15px "IBM Plex Mono"; letter-spacing: .08em; }
+.blank-fixture { height: 220px; margin: 30px 0 25px; border: 3px dashed #88949b; background: #fff; display: grid; place-items: center; color: #8b969b; font: 600 18px "IBM Plex Mono"; }
+.failure-card h3 { margin: 0; font-size: 36px; line-height: 1.1; }
+.failure-card p { margin: 22px 0 0; font-size: 21px; line-height: 1.4; }
+.failure-card .hard { color: #b51e10; font-weight: 700; }
+
+/* === SLIDE 6: Q&A CHALLENGE === */
+.qa-title { position: absolute; left: 82px; top: 165px; width: 840px; z-index: 2; }
+.qa-title h2 { margin: 18px 0 0; font-size: 82px; line-height: .92; }
+.qa-title p { margin: 32px 0 0; width: 700px; color: var(--muted); font-size: 26px; line-height: 1.4; }
+.challenge-card { position: absolute; top: 165px; right: 95px; width: 720px; height: 650px; padding: 52px; color: var(--ink); background: var(--yellow); transform: rotate(-1deg); box-shadow: 22px 22px 0 rgba(0, 0, 0, .27); }
+.challenge-card .mono { font-size: 17px; }
+.challenge-card h3 { margin: 32px 0 0; font: 400 51px/1.02 "Archivo Black"; letter-spacing: -.04em; text-transform: uppercase; }
+.challenge-card ol { margin: 38px 0 0; padding-left: 31px; font-size: 24px; line-height: 1.5; }
+.limit-strip { position: absolute; left: 82px; bottom: 135px; width: 1010px; display: flex; flex-wrap: wrap; gap: 14px; }
+.limit-strip span { padding: 12px 16px; border: 1px solid rgba(255, 255, 255, .27); color: #d5dfe4; font: 500 15px "IBM Plex Mono"; letter-spacing: .055em; }
+.team-line { position: absolute; right: 95px; bottom: 62px; color: var(--cyan); font: 600 16px "IBM Plex Mono"; letter-spacing: .08em; }
+
+/* === EXTERNAL CONTROLS === */
+.deck-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 13px;
+  border: 1px solid rgba(255, 255, 255, .16);
+  background: rgba(6, 17, 27, .82);
+  backdrop-filter: blur(8px);
+  color: var(--white);
+  font: 500 13px "IBM Plex Mono";
+  opacity: .3;
+  transition: opacity .2s ease;
+}
+.deck-controls:hover,
+.deck-controls:focus-within { opacity: 1; }
+.deck-controls button { border: 0; padding: 3px 8px; color: var(--white); background: transparent; cursor: pointer; }
+.progress-track { width: 110px; height: 3px; background: rgba(255, 255, 255, .2); }
+.progress-fill { width: 100%; height: 100%; background: var(--yellow); transform: scaleX(.16666); transform-origin: left center; transition: transform .25s ease; }
+.edit-hotzone { position: fixed; top: 0; left: 0; width: 80px; height: 80px; z-index: 10000; cursor: pointer; }
+.edit-toggle {
+  position: fixed;
+  top: 18px;
+  left: 18px;
+  z-index: 10001;
+  opacity: 0;
+  pointer-events: none;
+  padding: 9px 13px;
+  border: 1px solid rgba(255, 255, 255, .22);
+  color: var(--white);
+  background: rgba(6, 17, 27, .9);
+  font: 500 13px "IBM Plex Mono";
+  transition: opacity .2s ease;
+}
+.edit-toggle.show,
+.edit-toggle.active { opacity: 1; pointer-events: auto; }
+.editing [data-editable] { outline: 2px dashed var(--yellow); outline-offset: 4px; cursor: text; }
+</style>
+</head>
+<body>
+<div class="deck-viewport">
+  <main class="deck-stage" id="deckStage">
+
+    <!-- === SLIDE 1 · VŨ TIẾN DŨNG · 35s === -->
+    <section class="slide active visible" aria-label="Slide 1: Vấn đề">
+      <header class="slide-head"><span class="brand-mark"><i></i> VLearn Tutor</span><span class="slide-no">01 / 06</span></header>
+      <div class="title-copy">
+        <div class="kicker reveal">Visual Context Rescue</div>
+        <h1 class="display reveal delay-1" data-editable>Đừng bắt<br>learner<br><span class="accent-yellow">tả lại hình.</span></h1>
+        <p class="reveal delay-2" data-editable>Chọn đúng vùng trong PDF. Chỉ gửi crop tối thiểu khi bấm Gửi. Trả lời có provenance — hoặc recovery thay vì đoán.</p>
+      </div>
+      <div class="pdf-card reveal-scale delay-2" aria-hidden="true">
+        <div class="pdf-card__meta"><span>SLIDE 06</span><span>PDF</span></div>
+        <h2>Quan hệ giữa các thành phần?</h2>
+        <div class="crop-diagram">
+          <div class="crop-node">INPUT</div><div class="crop-node">OUTPUT</div><i class="crop-link"></i>
+          <div class="crop-frame"><i></i><i></i><i></i><i></i></div>
+        </div>
+        <span class="explicit-send">EXPLICIT SEND →</span>
+      </div>
+      <div class="promise-strip reveal delay-3"><span>GROUNDED</span><span>RECOVER, DON'T GUESS</span><span>LOCAL FIRST</span></div>
+      <footer class="speaker"><b>Vũ Tiến Dũng</b><span>Mở bài · vấn đề</span><time>0:35</time></footer>
+    </section>
+
+    <!-- === SLIDE 2 · ĐÀO THỊ TRANG · 40s === -->
+    <section class="slide" aria-label="Slide 2: Bằng chứng">
+      <header class="slide-head"><span class="brand-mark"><i></i> Evidence before solution</span><span class="slide-no">02 / 06</span></header>
+      <div class="evidence-title">
+        <div class="kicker reveal">Khoảng trống đã quan sát</div>
+        <h2 class="display reveal delay-1" data-editable>Text đi qua.<br><span class="accent-red">Pixel ở lại.</span></h2>
+        <p class="reveal delay-2" data-editable>VLearn đã phục vụ giải thích concept. Nhóm chỉ chọn gap nhỏ nhưng rõ: learner nhìn thấy visual, Tutor không nhận được đúng vùng visual đó.</p>
+      </div>
+      <div class="mining-line reveal delay-3"><strong>1.261</strong><span>turn được mining bằng rule bảo thủ — 5 yêu cầu visual trực tiếp, 4/5 reply không xác định được context visual.</span></div>
+      <aside class="evidence-stat reveal-scale delay-2">
+        <div class="big">4/5</div>
+        <h3 data-editable>lượt hỏi visual không được giải quyết ngay</h3>
+        <p data-editable>Không dùng volume để phóng đại pain: đây là gap cụ thể, kiểm chứng được và build end-to-end trong hackathon.</p>
+      </aside>
+      <footer class="speaker"><b>Đào Thị Trang</b><span>Evidence · detector</span><time>0:40</time></footer>
+    </section>
+
+    <!-- === SLIDE 3 · CHU NGUYỄN TUẤN ANH · 75s === -->
+    <section class="slide" aria-label="Slide 3: Live demo flow">
+      <header class="slide-head"><span class="brand-mark"><i></i> Uploaded PDF · 49 pages</span><span class="slide-no">03 / 06</span></header>
+      <div class="flow-title"><div class="kicker reveal">Live demo · happy path</div><h2 class="display reveal delay-1" data-editable>Từ vùng nhìn<br>đến câu trả lời.</h2></div>
+      <div class="live-badge reveal delay-2">LIVE · 75 GIÂY</div>
+      <div class="flow-track">
+        <article class="flow-step reveal"><b>01</b><h3 data-editable>Upload & mở slide 6</h3><p>PDF xử lý trong browser; không tự tải cả tài liệu lên AI.</p></article>
+        <article class="flow-step reveal delay-1"><b>02</b><h3 data-editable>Chọn vùng</h3><p>Candidate text/image/vector, Snip hoặc Circle.</p></article>
+        <article class="flow-step reveal delay-2"><b>03</b><h3 data-editable>Sửa câu hỏi</h3><p>Composer cho xem và bỏ context bằng × trước khi gửi.</p></article>
+        <article class="flow-step send-step reveal delay-3"><b>04</b><h3 data-editable>Bấm Gửi</h3><p>Crop + bounded text → Visual Tutor → provenance/recovery.</p></article>
+      </div>
+      <div class="zero-call reveal delay-3">0 AI REQUEST TRƯỚC EXPLICIT SEND</div>
+      <div class="demo-question reveal delay-4" data-editable>“Giải thích nội dung trong vùng này theo các nhãn và mũi tên đang hiển thị.”</div>
+      <footer class="speaker"><b>Chu Nguyễn Tuấn Anh</b><span>Live flow · Snip/PDF context</span><time>1:15</time></footer>
+    </section>
+
+    <!-- === SLIDE 4 · NGUYỄN ĐỨC CHUNG · 45s === -->
+    <section class="slide" aria-label="Slide 4: Quyết định AI và learner control">
+      <header class="slide-head"><span class="brand-mark"><i></i> Conditional automation</span><span class="slide-no">04 / 06</span></header>
+      <div class="decision-title"><div class="kicker reveal">Cost-of-error cao</div><h2 class="display reveal delay-1" data-editable>Đủ căn cứ<br>mới giải thích.</h2></div>
+      <div class="control-list">
+        <div class="reveal delay-1"><b>1</b><p data-editable>Selection và detector chạy local; learner nhìn thấy context trước khi gửi.</p></div>
+        <div class="reveal delay-2"><b>2</b><p data-editable>Crop chỉ lấy PDF canvas — không lấy nét Circle hay annotation.</p></div>
+        <div class="reveal delay-3"><b>3</b><p data-editable>Thiếu căn cứ thì quay lại Snip; không tự mở rộng sang toàn trang.</p></div>
+      </div>
+      <div class="route-orbit reveal-scale delay-2" aria-label="Bốn route Visual Tutor">
+        <i class="route-line l1"></i><i class="route-line l2"></i><i class="route-line l3"></i><i class="route-line l4"></i>
+        <div class="route-core">ONE OF<br>FOUR ROUTES</div>
+        <div class="route-card grounded"><b class="accent-cyan">VISUAL_GROUNDED</b><span>Đủ căn cứ + provenance.</span></div>
+        <div class="route-card wider"><b class="accent-yellow">NEED_WIDER_REGION</b><span>Thiếu nhãn hoặc phần liên quan.</span></div>
+        <div class="route-card better"><b class="accent-red">NEED_BETTER_IMAGE</b><span>Ảnh quá nhỏ hoặc mờ.</span></div>
+        <div class="route-card insufficient"><b>INSUFFICIENT</b><span>Nguồn không chứa điều được hỏi.</span></div>
+      </div>
+      <footer class="speaker"><b>Nguyễn Đức Chung</b><span>Overlay · Circle · control</span><time>0:45</time></footer>
+    </section>
+
+    <!-- === SLIDE 5 · LÊ MINH NGỌC · 70s === -->
+    <section class="slide" aria-label="Slide 5: Kết quả và live failure">
+      <header class="slide-head"><span class="brand-mark"><i></i> Quality bars frozen before run</span><span class="slide-no">05 / 06</span></header>
+      <div class="eval-title"><div class="kicker reveal">AI thật · OpenRouter / o4-mini</div><h2 class="display reveal delay-1" data-editable>% cao<br><span class="accent-red">vẫn có thể fail.</span></h2></div>
+      <div class="score-grid">
+        <div class="score-row reveal delay-1"><div class="score-label"><b>Direction B · Run 01</b><span>bar ≥80% · 0 unsupported</span></div><div class="bar at-80"><i style="width:90%"></i></div><div class="score">90%</div></div>
+        <div class="score-row reveal delay-2"><div class="score-label"><b>Direction C · Run 01</b><span>bar ≥10/12 = 83.3%</span></div><div class="bar at-83"><i class="bar-fail" style="width:75%"></i></div><div class="score gate-note">75%</div></div>
+        <div class="score-row reveal delay-3"><div class="score-label"><b>Direction B · hậu-C7</b><span>hard bar: 0 unsupported</span></div><div class="bar at-80"><i class="bar-fail" style="width:95%"></i></div><div class="score gate-note">95%</div></div>
+      </div>
+      <aside class="failure-card reveal-scale delay-2">
+        <span class="tag">CASE LỖI LIVE · R02</span>
+        <div class="blank-fixture">BLANK IMAGE FIXTURE</div>
+        <h3 data-editable>Ảnh trắng nhưng model vẫn “giải thích”.</h3>
+        <p data-editable>Hậu-C7 trả <b>VISUAL_GROUNDED</b> với nội dung QEMU/GDB không tồn tại trong nguồn.</p>
+        <p class="hard" data-editable>19/20 không cứu được hard constraint: unsupported grounded phải bằng 0.</p>
+      </aside>
+      <footer class="speaker"><b>Lê Minh Ngọc</b><span>AI contract · eval · failure</span><time>1:10</time></footer>
+    </section>
+
+    <!-- === SLIDE 6 · VŨ TIẾN DŨNG · 35s + Q&A === -->
+    <section class="slide" aria-label="Slide 6: Thẻ Q&A và case lạ">
+      <header class="slide-head"><span class="brand-mark"><i></i> Judge challenge</span><span class="slide-no">06 / 06</span></header>
+      <div class="qa-title"><div class="kicker reveal">5 phút Q&A</div><h2 class="display reveal delay-1" data-editable>Đưa nhóm<br><span class="accent-yellow">một case lạ.</span></h2><p class="reveal delay-2" data-editable>Chúng tôi không hứa mọi crop đều được giải thích. Chúng tôi hứa learner chọn đúng context, AI phải có căn cứ, và failure được nhìn thấy.</p></div>
+      <aside class="challenge-card reveal-scale delay-2">
+        <div class="mono">Thẻ cho giám khảo</div>
+        <h3 data-editable>Chọn một vùng chưa từng demo.</h3>
+        <ol>
+          <li data-editable>Dùng candidate, Snip hoặc Circle.</li>
+          <li data-editable>Hỏi: “Chỉ nêu thông tin nhìn thấy.”</li>
+          <li data-editable>Kiểm tra provenance hoặc recovery.</li>
+          <li data-editable>Xác nhận không có AI call trước Gửi.</li>
+        </ol>
+      </aside>
+      <div class="limit-strip reveal delay-3"><span>NO WHOLE-DOC VISUAL RETRIEVAL</span><span>DETECTOR = HEURISTIC</span><span>DIRECTION C: CHƯA CÓ USER STUDY MỚI</span></div>
+      <footer class="speaker"><b>Vũ Tiến Dũng</b><span>Kết luận · mời case lạ</span><time>0:35</time></footer>
+      <div class="team-line">DŨNG · TRANG · TUẤN ANH · CHUNG · NGỌC</div>
+    </section>
+  </main>
+</div>
+
+<!-- === PRESENTATION CONTROLS === -->
+<nav class="deck-controls" aria-label="Điều khiển slide">
+  <button id="prevSlide" type="button" aria-label="Slide trước">←</button>
+  <span id="slideCount">1 / 6</span>
+  <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="progressFill"></div></div>
+  <button id="nextSlide" type="button" aria-label="Slide sau">→</button>
+</nav>
+<div class="edit-hotzone" aria-hidden="true"></div>
+<button class="edit-toggle" id="editToggle" type="button" title="Bật chế độ sửa (E)">EDIT</button>
+
+<script>
+/* === SLIDE PRESENTATION CONTROLLER === */
+class SlidePresentation {
+  constructor() {
+    this.slides = [...document.querySelectorAll(".slide")];
+    this.currentSlide = 0;
+    this.stage = document.getElementById("deckStage");
+    this.touchStartX = 0;
+    this.lastWheelAt = 0;
+    this.setupStageScale();
+    this.setupNavigation();
+    this.restoreEdits();
+    this.showSlide(0);
+  }
+
+  setupStageScale() {
+    const scale = () => {
+      const factor = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+      const x = (window.innerWidth - 1920 * factor) / 2;
+      const y = (window.innerHeight - 1080 * factor) / 2;
+      this.stage.style.transform = `translate(${x}px, ${y}px) scale(${factor})`;
+    };
+    scale();
+    window.addEventListener("resize", scale);
+  }
+
+  setupNavigation() {
+    document.getElementById("prevSlide").addEventListener("click", () => this.showSlide(this.currentSlide - 1));
+    document.getElementById("nextSlide").addEventListener("click", () => this.showSlide(this.currentSlide + 1));
+    document.addEventListener("keydown", event => {
+      if (event.target.getAttribute("contenteditable") === "true") return;
+      if (["ArrowRight", "ArrowDown", "PageDown", " "].includes(event.key)) {
+        event.preventDefault();
+        this.showSlide(this.currentSlide + 1);
+      }
+      if (["ArrowLeft", "ArrowUp", "PageUp"].includes(event.key)) {
+        event.preventDefault();
+        this.showSlide(this.currentSlide - 1);
+      }
+      if (event.key === "Home") this.showSlide(0);
+      if (event.key === "End") this.showSlide(this.slides.length - 1);
+    });
+    document.addEventListener("touchstart", event => { this.touchStartX = event.changedTouches[0].clientX; }, { passive: true });
+    document.addEventListener("touchend", event => {
+      const delta = event.changedTouches[0].clientX - this.touchStartX;
+      if (Math.abs(delta) > 55) this.showSlide(this.currentSlide + (delta < 0 ? 1 : -1));
+    }, { passive: true });
+    document.addEventListener("wheel", event => {
+      const now = Date.now();
+      if (now - this.lastWheelAt < 500 || Math.abs(event.deltaY) < 20) return;
+      this.lastWheelAt = now;
+      this.showSlide(this.currentSlide + (event.deltaY > 0 ? 1 : -1));
+    }, { passive: true });
+  }
+
+  showSlide(index) {
+    this.currentSlide = Math.max(0, Math.min(index, this.slides.length - 1));
+    this.slides.forEach((slide, slideIndex) => {
+      const active = slideIndex === this.currentSlide;
+      slide.classList.toggle("active", active);
+      slide.classList.toggle("visible", active);
+      slide.setAttribute("aria-hidden", String(!active));
+    });
+    document.getElementById("slideCount").textContent = `${this.currentSlide + 1} / ${this.slides.length}`;
+    document.getElementById("progressFill").style.transform = `scaleX(${(this.currentSlide + 1) / this.slides.length})`;
+    history.replaceState(null, "", `#${this.currentSlide + 1}`);
+  }
+
+  restoreEdits() {
+    document.querySelectorAll("[data-editable]").forEach((element, index) => {
+      const saved = localStorage.getItem(`visual-context-rescue-slide-copy-${index}`);
+      if (saved !== null) element.innerHTML = saved;
+      element.addEventListener("input", () => localStorage.setItem(`visual-context-rescue-slide-copy-${index}`, element.innerHTML));
+    });
+  }
+}
+
+/* === INLINE EDITING === */
+const presentation = new SlidePresentation();
+const hotzone = document.querySelector(".edit-hotzone");
+const editToggle = document.getElementById("editToggle");
+let editing = false;
+let hideTimeout = null;
+
+function toggleEditing() {
+  editing = !editing;
+  document.body.classList.toggle("editing", editing);
+  editToggle.classList.toggle("active", editing);
+  editToggle.textContent = editing ? "DONE" : "EDIT";
+  document.querySelectorAll("[data-editable]").forEach(element => element.setAttribute("contenteditable", String(editing)));
+}
+
+hotzone.addEventListener("mouseenter", () => { clearTimeout(hideTimeout); editToggle.classList.add("show"); });
+hotzone.addEventListener("mouseleave", () => { hideTimeout = setTimeout(() => { if (!editing) editToggle.classList.remove("show"); }, 400); });
+hotzone.addEventListener("click", toggleEditing);
+editToggle.addEventListener("click", toggleEditing);
+editToggle.addEventListener("mouseenter", () => clearTimeout(hideTimeout));
+editToggle.addEventListener("mouseleave", () => { hideTimeout = setTimeout(() => { if (!editing) editToggle.classList.remove("show"); }, 400); });
+document.addEventListener("keydown", event => {
+  if ((event.key === "e" || event.key === "E") && event.target.getAttribute("contenteditable") !== "true") toggleEditing();
+});
+</script>
+</body>
+</html>
